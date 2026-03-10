@@ -10,7 +10,6 @@ import type { Session, Message } from "@/lib/types";
 
 export default function ChatPage() {
   const { data: authSession, status } = useSession();
-  const userId = authSession?.user?.id;
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -20,9 +19,9 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!userId) return;
-    listSessions(userId).then(setSessions).catch(console.error);
-  }, [userId]);
+    if (status !== "authenticated") return;
+    listSessions().then(setSessions).catch(console.error);
+  }, [status]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,11 +47,10 @@ export default function ChatPage() {
   }
 
   async function handleSubmit(content: string) {
-    if (!userId) return;
     // セッションがなければ新規作成
     let sessionId = activeId;
     if (!sessionId) {
-      const session = await createSession(userId, content.slice(0, 60));
+      const session = await createSession(content.slice(0, 60));
       setSessions((prev) => [session, ...prev]);
       setActiveId(session.id);
       sessionId = session.id;

@@ -1,9 +1,11 @@
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
+from backend.dependencies import get_current_user_id
 from backend.models import ChatSession
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -19,8 +21,12 @@ class SessionResponse(BaseModel):
 
 
 @router.post("", response_model=SessionResponse)
-def create_session(user_id: uuid.UUID, title: str, db: Session = Depends(get_db)):
-    session = ChatSession(user_id=user_id, title=title[:60])
+def create_session(
+    title: str,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    session = ChatSession(user_id=current_user_id, title=title[:60])
     db.add(session)
     db.commit()
     db.refresh(session)
@@ -32,10 +38,13 @@ def create_session(user_id: uuid.UUID, title: str, db: Session = Depends(get_db)
 
 
 @router.get("", response_model=list[SessionResponse])
-def list_sessions(user_id: uuid.UUID, db: Session = Depends(get_db)):
+def list_sessions(
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     sessions = (
         db.query(ChatSession)
-        .filter(ChatSession.user_id == user_id)
+        .filter(ChatSession.user_id == current_user_id)
         .order_by(ChatSession.created_at.desc())
         .all()
     )
@@ -46,10 +55,16 @@ def list_sessions(user_id: uuid.UUID, db: Session = Depends(get_db)):
 
 
 @router.get("/{session_id}/messages")
-def get_messages(session_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_messages(
+    session_id: uuid.UUID,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     return [
         {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
         for m in session.messages
@@ -57,9 +72,15 @@ def get_messages(session_id: uuid.UUID, db: Session = Depends(get_db)):
 
 
 @router.delete("/{session_id}", status_code=204)
-def delete_session(session_id: uuid.UUID, db: Session = Depends(get_db)):
+def delete_session(
+    session_id: uuid.UUID,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db.delete(session)
     db.commit()

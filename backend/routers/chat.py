@@ -1,5 +1,6 @@
 import os
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 from anthropic import AsyncAnthropic
 
 from backend.database import get_db, SessionLocal
+from backend.dependencies import get_current_user_id
 from backend.models import ChatSession, Message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -51,10 +53,17 @@ async def stream_response(session_id: uuid.UUID, content: str):
 
 
 @router.post("/{session_id}")
-async def chat(session_id: uuid.UUID, req: ChatRequest, db: Session = Depends(get_db)):
+async def chat(
+    session_id: uuid.UUID,
+    req: ChatRequest,
+    current_user_id: uuid.UUID = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     return StreamingResponse(
         stream_response(session_id, req.content),

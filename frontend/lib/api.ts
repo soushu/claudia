@@ -2,29 +2,34 @@ import type { Session, Message } from "./types";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
-export async function createSession(userId: string, title: string): Promise<Session> {
+export async function createSession(title: string): Promise<Session> {
   const res = await fetch(
-    `${BACKEND}/sessions?user_id=${userId}&title=${encodeURIComponent(title)}`,
-    { method: "POST" }
+    `${BACKEND}/sessions?title=${encodeURIComponent(title)}`,
+    { method: "POST", credentials: "include" }
   );
   if (!res.ok) throw new Error("Failed to create session");
   return res.json();
 }
 
-export async function listSessions(userId: string): Promise<Session[]> {
-  const res = await fetch(`${BACKEND}/sessions?user_id=${userId}`);
+export async function listSessions(): Promise<Session[]> {
+  const res = await fetch(`${BACKEND}/sessions`, { credentials: "include" });
   if (!res.ok) throw new Error("Failed to fetch sessions");
   return res.json();
 }
 
 export async function getMessages(sessionId: string): Promise<Message[]> {
-  const res = await fetch(`${BACKEND}/sessions/${sessionId}/messages`);
+  const res = await fetch(`${BACKEND}/sessions/${sessionId}/messages`, {
+    credentials: "include",
+  });
   if (!res.ok) throw new Error("Failed to fetch messages");
   return res.json();
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await fetch(`${BACKEND}/sessions/${sessionId}`, { method: "DELETE" });
+  await fetch(`${BACKEND}/sessions/${sessionId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
 }
 
 export async function* streamChat(
@@ -35,6 +40,7 @@ export async function* streamChat(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
+    credentials: "include",
   });
   if (!res.ok || !res.body) throw new Error("Stream failed");
 

@@ -1,0 +1,19 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #020509;
+}
+
+body {
+  background-color: var(--background);
+  color: #e2e8f0;
+  font-family: "DM Sans", sans-serif;
+}
+
+code, pre {
+  font-family: "DM Mono", monospace;
+}

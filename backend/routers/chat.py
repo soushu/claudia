@@ -31,10 +31,18 @@ async def stream_response(session_id: uuid.UUID, content: str):
         db.add(user_msg)
         db.commit()
 
+        history = (
+            db.query(Message)
+            .filter(Message.session_id == session_id)
+            .order_by(Message.created_at)
+            .all()
+        )
+        messages = [{"role": m.role, "content": m.content} for m in history]
+
         async with client.messages.stream(
             model="claude-sonnet-4-6",
             max_tokens=4096,
-            messages=[{"role": "user", "content": content}],
+            messages=messages,
         ) as stream:
             async for text in stream.text_stream:
                 full_response += text

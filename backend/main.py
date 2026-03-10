@@ -18,6 +18,12 @@ app.add_middleware(
 )
 
 
+from backend.routers import chat, sessions
+
+app.include_router(chat.router)
+app.include_router(sessions.router)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

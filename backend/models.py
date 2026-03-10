@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -15,7 +15,7 @@ class User(Base):
     name = Column(String, nullable=True)
     password_hash = Column(String, nullable=True)
     auth_provider = Column(String, nullable=False)  # 'google' or 'email'
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     sessions = relationship("ChatSession", back_populates="user", cascade="all, delete")
 
@@ -26,7 +26,7 @@ class ChatSession(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title = Column(String(60), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="sessions")
     messages = relationship("Message", back_populates="session", cascade="all, delete")
@@ -39,6 +39,6 @@ class Message(Base):
     session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=False)
     role = Column(String, nullable=False)  # 'user' or 'assistant'
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("ChatSession", back_populates="messages")

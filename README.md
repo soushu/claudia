@@ -1,27 +1,49 @@
-# claudia
+flowchart TD
+    A([🚀 アプリ起動]) --> B[スプラッシュ画面]
+    B --> C{初回起動?}
+    C -->|Yes| D[オンボーディング\n①アプリ紹介\n②権限許可]
+    C -->|No| E[ホーム画面]
+    D --> E
 
-Personal AI chat app powered by Anthropic Claude API.
+    E --> F[新規カウンセリング作成]
+    E --> G[過去の記録一覧]
+    E --> H[設定]
+    E --> I[プレミアム案内バナー]
 
-## Stack
+    %% 無料版フロー
+    F --> J{プラン選択}
+    J -->|無料版| K[手動メモ入力画面\n📝 テキスト記録]
+    K --> L[メモ保存\n＋バナー広告表示]
+    L --> M[カウンセリング詳細画面]
 
-- **Frontend**: Next.js 14 (App Router) + Tailwind CSS
-- **Backend**: FastAPI (Python)
-- **Auth**: Google OAuth 2.0 + Email/Password (NextAuth.js)
-- **DB**: PostgreSQL + SQLAlchemy + Alembic
-- **AI**: Anthropic Claude API
-- **Hosting**: AWS Lightsail
+    %% 有料版フロー
+    J -->|有料版| N[録音開始画面\n🎙️ リアルタイム録音]
+    N --> O{言語選択}
+    O -->|日本語| P[日本語録音・文字起こし]
+    O -->|韓国語| Q[韓国語録音・文字起こし\n→ 日本語自動翻訳]
+    P --> R[AI要約・議事録生成\n✨ Gemini API]
+    Q --> R
+    R --> M
 
-## Development
+    %% 詳細画面
+    M --> S[内容編集]
+    M --> T[PDF/テキスト書き出し]
+    M --> U[カウンセリング比較\n📊 前回との差分表示]
 
-```bash
-# Backend
-cd backend
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn main:app --reload --port 8000
+    %% 過去記録
+    G --> M
 
-# Frontend
-cd frontend
-npm install
-npm run dev
-```
+    %% 設定
+    H --> V[アカウント設定]
+    H --> W[通知設定]
+    H --> X[プレミアム管理\n購入・復元]
+
+    %% プレミアム購入
+    I --> Y[プレミアム購入画面\n💳 買い切り型]
+    X --> Y
+    Y -->|購入完了| J
+
+    style A fill:#ff6b9d,color:#fff
+    style R fill:#7c3aed,color:#fff
+    style Q fill:#0ea5e9,color:#fff
+    style Y fill:#f59e0b,color:#fff

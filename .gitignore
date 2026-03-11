@@ -7,6 +7,7 @@ venv/
 *.egg-info/
 dist/
 .env
+.env.production
 
 # Node.js
 node_modules/
@@ -15,6 +16,7 @@ out/
 *.tsbuildinfo
 .env.local
 .env*.local
+.env.production
 
 # Alembic
 alembic/versions/*.pyc

@@ -3,7 +3,6 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
-const ALLOWED_EMAIL = process.env.ALLOWED_EMAIL || "";
 
 const authOptions: NextAuthOptions = {
   providers: [
@@ -41,8 +40,7 @@ const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account }) {
-      const email = user.email;
-      if (!email || email !== ALLOWED_EMAIL) return false;
+      if (!user.email) return false;
 
       if (account?.provider === "google") {
         try {

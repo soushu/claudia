@@ -97,7 +97,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
       className={`p-2 md:p-4 border-t transition-colors ${
         dragging
           ? "border-blue-500 bg-blue-500/10"
-          : "border-slate-800"
+          : "border-border-primary"
       }`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -113,11 +113,11 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
                 <img
                   src={url}
                   alt={`attach ${i + 1}`}
-                  className="w-16 h-16 object-cover rounded-lg border border-slate-700"
+                  className="w-16 h-16 object-cover rounded-lg border border-border-secondary"
                 />
                 <button
                   onClick={() => removeImage(i)}
-                  className="absolute -top-1.5 -right-1.5 w-6 h-6 md:w-5 md:h-5 bg-slate-600 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1.5 -right-1.5 w-6 h-6 md:w-5 md:h-5 bg-theme-hover hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 >
                   x
                 </button>
@@ -131,7 +131,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
           <button
             onClick={() => fileRef.current?.click()}
             disabled={disabled}
-            className="p-2 text-slate-500 hover:text-slate-300 disabled:opacity-50 transition-colors flex-shrink-0 mb-1"
+            className="p-2 text-t-muted hover:text-t-secondary disabled:opacity-50 transition-colors flex-shrink-0 mb-1"
             title="Attach image"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -163,14 +163,14 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
             }}
             placeholder="Type a message..."
             rows={2}
-            className="flex-1 bg-slate-800 text-slate-200 placeholder-slate-500 text-sm px-4 py-3 rounded-xl resize-none outline-none focus:ring-1 focus:ring-slate-600 disabled:opacity-50 font-sans"
+            className="flex-1 bg-theme-input text-t-secondary placeholder-t-placeholder text-sm px-4 py-3 rounded-xl resize-none outline-none focus:ring-1 focus:ring-border-secondary disabled:opacity-50 font-sans"
           />
 
           {/* Send button */}
           <button
             onClick={submit}
             disabled={disabled}
-            className="p-2 text-slate-500 hover:text-slate-300 disabled:opacity-50 transition-colors flex-shrink-0 mb-1"
+            className="p-2 text-t-muted hover:text-t-secondary disabled:opacity-50 transition-colors flex-shrink-0 mb-1"
             title="Send"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -189,7 +189,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value as ModelId)}
             disabled={disabled}
-            className="bg-transparent text-slate-500 text-xs outline-none disabled:opacity-50 cursor-pointer"
+            className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
           >
             {MODEL_OPTIONS.map((m) => (
               <option key={m.id} value={m.id}>
@@ -197,7 +197,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
               </option>
             ))}
           </select>
-          <p className="text-xs text-slate-600 text-right hidden md:block">
+          <p className="text-xs text-t-faint text-right hidden md:block">
             Enter to send / Shift+Enter for newline / Attach images via drag & drop, paste, or clip
           </p>
         </div>

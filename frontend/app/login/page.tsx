@@ -21,8 +21,8 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm space-y-6 px-4">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-slate-100">claudia</h1>
-        <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
+        <h1 className="text-2xl font-bold text-t-primary">claudia</h1>
+        <p className="mt-1 text-sm text-t-muted">Sign in to continue</p>
       </div>
 
       {error && (
@@ -59,9 +59,9 @@ function LoginForm() {
       </button>
 
       <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-slate-700" />
-        <span className="text-xs text-slate-500">or</span>
-        <div className="h-px flex-1 bg-slate-700" />
+        <div className="h-px flex-1 bg-divider" />
+        <span className="text-xs text-t-muted">or</span>
+        <div className="h-px flex-1 bg-divider" />
       </div>
 
       <form onSubmit={handleCredentials} className="space-y-4">
@@ -71,7 +71,7 @@ function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-slate-500 focus:outline-none"
+          className="w-full rounded-lg border border-border-input bg-theme-input px-4 py-3 text-sm text-t-primary placeholder-t-placeholder focus:border-border-secondary focus:outline-none"
         />
         <input
           type="password"
@@ -79,12 +79,12 @@ function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:border-slate-500 focus:outline-none"
+          className="w-full rounded-lg border border-border-input bg-theme-input px-4 py-3 text-sm text-t-primary placeholder-t-placeholder focus:border-border-secondary focus:outline-none"
         />
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-slate-700 px-4 py-3 text-sm font-medium text-slate-100 hover:bg-slate-600 transition-colors disabled:opacity-50"
+          className="w-full rounded-lg bg-theme-hover px-4 py-3 text-sm font-medium text-t-primary hover:bg-theme-active transition-colors disabled:opacity-50"
         >
           {loading ? "Signing in..." : "Sign in with Email"}
         </button>
@@ -95,10 +95,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ background: "#020509" }}
-    >
+    <div className="flex min-h-screen items-center justify-center bg-theme-base">
       <Suspense>
         <LoginForm />
       </Suspense>

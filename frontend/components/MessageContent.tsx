@@ -2,9 +2,13 @@
 
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { oneDark, coldarkCold } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useTheme } from "@/lib/themeContext";
 
 export default function MessageContent({ content }: { content: string }) {
+  const { theme } = useTheme();
+  const codeStyle = theme === "dark" ? oneDark : coldarkCold;
+
   return (
     <ReactMarkdown
       components={{
@@ -13,14 +17,14 @@ export default function MessageContent({ content }: { content: string }) {
           const isInline = !match;
           return isInline ? (
             <code
-              className="bg-slate-800 text-slate-200 px-1 py-0.5 rounded text-sm font-mono"
+              className="bg-code-bg text-code-text px-1 py-0.5 rounded text-sm font-mono"
               {...props}
             >
               {children}
             </code>
           ) : (
             <SyntaxHighlighter
-              style={oneDark}
+              style={codeStyle}
               language={match[1]}
               PreTag="div"
               className="rounded-lg text-sm my-2"

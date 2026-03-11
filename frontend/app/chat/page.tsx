@@ -197,7 +197,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#020509" }}>
+    <div className="flex h-screen overflow-hidden bg-theme-base">
       <Sidebar
         sessions={sessions}
         activeId={activeId}
@@ -216,16 +216,16 @@ export default function ChatPage() {
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile header bar */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-slate-800">
+        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border-primary">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 text-t-tertiary hover:text-t-secondary transition-colors"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-          <h1 className="text-base font-semibold text-slate-100">claudia</h1>
+          <h1 className="text-base font-semibold text-t-primary">claudia</h1>
         </div>
 
         {/* Message list */}
@@ -233,18 +233,18 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto space-y-6">
             {status === "loading" && (
               <div className="flex justify-center mt-20">
-                <div className="w-6 h-6 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-spinner-track border-t-spinner-fill rounded-full animate-spin" />
               </div>
             )}
 
             {loadingMessages && (
               <div className="flex justify-center mt-20">
-                <div className="w-6 h-6 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-spinner-track border-t-spinner-fill rounded-full animate-spin" />
               </div>
             )}
 
             {messages.length === 0 && !streaming && !loadingMessages && status !== "loading" && (
-              <p className="text-slate-600 text-center mt-20 text-sm">
+              <p className="text-t-faint text-center mt-20 text-sm">
                 Start a conversation
               </p>
             )}
@@ -265,14 +265,14 @@ export default function ChatPage() {
             {/* Streaming for brand new pair (user message just sent, not yet in pairs) */}
             {streaming && pairs.length > 0 && pairs[pairs.length - 1].assistant !== null && (
               <div className="flex gap-3 justify-start">
-                <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center text-xs flex-shrink-0 mt-1">
+                <div className="w-7 h-7 rounded-full bg-theme-avatar flex items-center justify-center text-xs flex-shrink-0 mt-1 text-t-primary">
                   C
                 </div>
-                <div className="max-w-[95%] md:max-w-[80%] bg-slate-800/60 text-slate-200 rounded-2xl rounded-bl-sm px-3 py-2.5 md:px-4 md:py-3 text-sm">
+                <div className="max-w-[95%] md:max-w-[80%] bg-theme-assistant-bubble text-t-secondary rounded-2xl rounded-bl-sm px-3 py-2.5 md:px-4 md:py-3 text-sm">
                   {streamingText ? (
                     <span>{streamingText}</span>
                   ) : (
-                    <span className="animate-pulse text-slate-500">cursor</span>
+                    <span className="animate-pulse text-t-muted">cursor</span>
                   )}
                 </div>
               </div>

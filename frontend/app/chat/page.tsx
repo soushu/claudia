@@ -120,6 +120,9 @@ export default function ChatPage() {
   }
 
   async function handleSubmit(content: string, imageFiles: File[], model: ModelId) {
+    setStreaming(true);
+    setStreamingText("");
+
     let sessionId = activeId;
     if (!sessionId) {
       const session = await createSession(content.slice(0, 60) || "Image question");
@@ -136,8 +139,6 @@ export default function ChatPage() {
       ...prev,
       { role: "user", content, created_at: new Date().toISOString(), images: images.length > 0 ? images : undefined },
     ]);
-    setStreaming(true);
-    setStreamingText("");
 
     let full = "";
     try {
@@ -261,6 +262,13 @@ export default function ChatPage() {
                 />
               );
             })}
+
+            {/* Spinner while preparing (session creation, image conversion) */}
+            {streaming && !streamingText && (messages.length === 0 || messages[messages.length - 1].role !== "user") && !pairs.some(p => !p.assistant) && (
+              <div className="flex justify-center py-4">
+                <div className="w-6 h-6 border-2 border-slate-600 border-t-slate-300 rounded-full animate-spin" />
+              </div>
+            )}
 
             {/* Streaming for brand new pair (user message just sent, not yet in pairs) */}
             {streaming && pairs.length > 0 && pairs[pairs.length - 1].assistant !== null && (

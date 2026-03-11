@@ -32,7 +32,8 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
     full_response = ""
 
     try:
-        user_msg = Message(session_id=session_id, role="user", content=content)
+        images_data = [{"media_type": img.media_type, "data": img.data} for img in images] if images else None
+        user_msg = Message(session_id=session_id, role="user", content=content, images=images_data)
         db.add(user_msg)
         db.commit()
 

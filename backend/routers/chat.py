@@ -15,11 +15,17 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
+class ImageAttachment(BaseModel):
+    media_type: str  # image/jpeg, image/png, image/gif, image/webp
+    data: str  # base64-encoded
+
+
 class ChatRequest(BaseModel):
     content: str
+    images: list[ImageAttachment] = []
 
 
-async def stream_response(session_id: uuid.UUID, content: str):
+async def stream_response(session_id: uuid.UUID, content: str, images: list[ImageAttachment] = []):
     # StreamingResponse はルートハンドラの return 後に実行されるため
     # Depends(get_db) のセッションは既に閉じられている。
     # ジェネレーター内で独自にセッションを作成する。
@@ -38,6 +44,24 @@ async def stream_response(session_id: uuid.UUID, content: str):
             .all()
         )
         messages = [{"role": m.role, "content": m.content} for m in history]
+
+        # Replace the last user message with multimodal content if images are attached
+        if images and messages and messages[-1]["role"] == "user":
+            image_blocks = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": img.media_type,
+                        "data": img.data,
+                    },
+                }
+                for img in images
+            ]
+            messages[-1]["content"] = [
+                *image_blocks,
+                {"type": "text", "text": content},
+            ]
 
         async with client.messages.stream(
             model="claude-sonnet-4-6",
@@ -75,6 +99,6 @@ async def chat(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     return StreamingResponse(
-        stream_response(session_id, req.content),
+        stream_response(session_id, req.content, req.images),
         media_type="text/plain",
     )

@@ -6,7 +6,7 @@ import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
 import QAPairBlock from "@/components/QAPairBlock";
 import { createSession, listSessions, getMessages, deleteSession, streamChat } from "@/lib/api";
-import type { Session, Message, QAPair } from "@/lib/types";
+import type { Session, Message, QAPair, ImageAttachment } from "@/lib/types";
 
 function groupIntoPairs(messages: Message[]): QAPair[] {
   const pairs: QAPair[] = [];
@@ -69,26 +69,49 @@ export default function ChatPage() {
     if (activeId === id) handleNew();
   }
 
-  async function handleSubmit(content: string) {
+  async function fileToBase64(file: File): Promise<ImageAttachment> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // data:image/png;base64,xxxx → extract base64 part
+        const data = result.split(",")[1];
+        resolve({
+          media_type: file.type,
+          data,
+          preview_url: URL.createObjectURL(file),
+        });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleSubmit(content: string, imageFiles: File[]) {
     // セッションがなければ新規作成
     let sessionId = activeId;
     if (!sessionId) {
-      const session = await createSession(content.slice(0, 60));
+      const session = await createSession(content.slice(0, 60) || "画像の質問");
       setSessions((prev) => [session, ...prev]);
       setActiveId(session.id);
       sessionId = session.id;
     }
 
+    // Convert files to base64
+    const images: ImageAttachment[] = await Promise.all(
+      imageFiles.map(fileToBase64)
+    );
+
     setMessages((prev) => [
       ...prev,
-      { role: "user", content, created_at: new Date().toISOString() },
+      { role: "user", content, created_at: new Date().toISOString(), images: images.length > 0 ? images : undefined },
     ]);
     setStreaming(true);
     setStreamingText("");
 
     let full = "";
     try {
-      for await (const chunk of streamChat(sessionId, content)) {
+      for await (const chunk of streamChat(sessionId, content, images.length > 0 ? images : undefined)) {
         full += chunk;
         setStreamingText(full);
       }

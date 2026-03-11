@@ -47,7 +47,21 @@ export default function QAPairBlock({ pair, collapsed, onToggle, streamingText }
             {/* User bubble */}
             <div className="flex gap-3 justify-end">
               <div className="max-w-[80%] rounded-2xl px-4 py-3 text-sm bg-slate-700 text-slate-100 rounded-br-sm">
-                <p className="whitespace-pre-wrap">{pair.user.content}</p>
+                {pair.user.images && pair.user.images.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {pair.user.images.map((img, i) => (
+                      <img
+                        key={i}
+                        src={img.preview_url || `data:${img.media_type};base64,${img.data}`}
+                        alt={`添付 ${i + 1}`}
+                        className="max-w-[200px] max-h-[200px] object-contain rounded-lg"
+                      />
+                    ))}
+                  </div>
+                )}
+                {pair.user.content && (
+                  <p className="whitespace-pre-wrap">{pair.user.content}</p>
+                )}
               </div>
             </div>
 

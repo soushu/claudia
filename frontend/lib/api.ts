@@ -1,4 +1,4 @@
-import type { Session, Message } from "./types";
+import type { Session, Message, ImageAttachment } from "./types";
 
 const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
@@ -34,12 +34,17 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function* streamChat(
   sessionId: string,
-  content: string
+  content: string,
+  images?: ImageAttachment[]
 ): AsyncGenerator<string> {
+  const body: Record<string, unknown> = { content };
+  if (images && images.length > 0) {
+    body.images = images.map(({ media_type, data }) => ({ media_type, data }));
+  }
   const res = await fetch(`${BACKEND}/chat/${sessionId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify(body),
     credentials: "include",
   });
   if (!res.ok || !res.body) throw new Error("Stream failed");

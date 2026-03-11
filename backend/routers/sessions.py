@@ -66,7 +66,12 @@ def get_messages(
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
     return [
-        {"role": m.role, "content": m.content, "created_at": m.created_at.isoformat()}
+        {
+            "role": m.role,
+            "content": m.content,
+            "created_at": m.created_at.isoformat(),
+            **({"images": m.images} if m.images else {}),
+        }
         for m in session.messages
     ]
 

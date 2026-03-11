@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.dependencies import get_current_user_id
-from backend.models import ChatSession
+from backend.models import ChatSession, Message
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -65,6 +65,12 @@ def get_messages(
         raise HTTPException(status_code=404, detail="Session not found")
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
+    messages = (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.created_at)
+        .all()
+    )
     return [
         {
             "role": m.role,
@@ -72,7 +78,7 @@ def get_messages(
             "created_at": m.created_at.isoformat(),
             **({"images": m.images} if m.images else {}),
         }
-        for m in session.messages
+        for m in messages
     ]
 
 

@@ -1,10 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as DBSession
 from passlib.context import CryptContext
 
 from backend.database import get_db
 from backend.models import User
+
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -23,8 +27,14 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/upsert-user")
-def upsert_user(req: UpsertUserRequest, db: DBSession = Depends(get_db)):
+def upsert_user(
+    req: UpsertUserRequest,
+    db: DBSession = Depends(get_db),
+    x_internal_api_key: str = Header(alias="X-Internal-API-Key", default=""),
+):
     """Google OAuth 初回ログイン時にユーザーをDB作成/更新し、DB UUID を返す。"""
+    if not INTERNAL_API_KEY or x_internal_api_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
     user = db.query(User).filter(User.email == req.email).first()
 
     if user:

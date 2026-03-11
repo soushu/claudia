@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 
 const authOptions: NextAuthOptions = {
   providers: [
@@ -46,7 +47,10 @@ const authOptions: NextAuthOptions = {
         try {
           const res = await fetch(`${BACKEND_URL}/auth/upsert-user`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-API-Key": INTERNAL_API_KEY,
+            },
             body: JSON.stringify({
               email: user.email,
               name: user.name,

@@ -52,9 +52,9 @@ async def stream_response(session_id: uuid.UUID, content: str):
         db.add(assistant_msg)
         db.commit()
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        yield f"\n\n[ERROR: {str(e)}]"
+        yield "\n\n[ERROR: メッセージの生成中にエラーが発生しました]"
 
     finally:
         db.close()

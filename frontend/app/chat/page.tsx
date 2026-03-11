@@ -115,6 +115,16 @@ export default function ChatPage() {
     let full = "";
     try {
       const apiKey = getApiKey();
+      if (!apiKey) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "APIキーが設定されていません。サイドバーの「API Key 設定」からAnthropicのAPIキーを設定してください。", created_at: new Date().toISOString() },
+        ]);
+        setStreaming(false);
+        setStreamingText("");
+        setApiKeyModalOpen(true);
+        return;
+      }
       for await (const chunk of streamChat(sessionId, content, images.length > 0 ? images : undefined, apiKey)) {
         full += chunk;
         setStreamingText(full);

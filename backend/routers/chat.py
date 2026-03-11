@@ -1,4 +1,3 @@
-import os
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -13,7 +12,6 @@ from backend.models import ChatSession, Message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-_default_api_key = os.getenv("ANTHROPIC_API_KEY")
 
 
 class ImageAttachment(BaseModel):
@@ -64,11 +62,10 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
                 {"type": "text", "text": content},
             ]
 
-        effective_key = api_key or _default_api_key
-        if not effective_key:
-            yield "\n\n[ERROR: APIキーが設定されていません]"
+        if not api_key:
+            yield "\n\n[ERROR: APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください]"
             return
-        client = AsyncAnthropic(api_key=effective_key)
+        client = AsyncAnthropic(api_key=api_key)
 
         async with client.messages.stream(
             model="claude-sonnet-4-6",
@@ -110,9 +107,8 @@ async def chat(
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Validate that at least one API key source is available
-    if not x_api_key and not _default_api_key:
-        raise HTTPException(status_code=400, detail="APIキーが設定されていません")
+    if not x_api_key:
+        raise HTTPException(status_code=400, detail="APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。")
 
     return StreamingResponse(
         stream_response(session_id, req.content, req.images, api_key=x_api_key),

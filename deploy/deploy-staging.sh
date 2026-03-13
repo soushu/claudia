@@ -16,15 +16,19 @@ git reset --hard "origin/${BRANCH}"
 venv/bin/pip install -q -r requirements.txt
 venv/bin/alembic upgrade head
 
+# Stop staging services to free memory for build
+sudo systemctl stop claudia-staging-backend || true
+sudo systemctl stop claudia-staging-frontend || true
+
 # Frontend: install dependencies + build
 cd frontend
 npm ci --prefer-offline
-NODE_OPTIONS="--max_old_space_size=512" npm run build
+NODE_OPTIONS="--max_old_space_size=384" npm run build
 cd ..
 
-# Restart services
-sudo systemctl restart claudia-staging-backend
-sudo systemctl restart claudia-staging-frontend
+# Start services
+sudo systemctl start claudia-staging-backend
+sudo systemctl start claudia-staging-frontend
 
 # Wait for backend to be ready
 echo "Waiting for backend..."

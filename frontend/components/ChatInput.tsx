@@ -6,30 +6,62 @@ import { MODEL_GROUPS, type ModelId } from "@/lib/types";
 type Props = {
   onSubmit: (content: string, images: File[], model: ModelId, debateMode?: boolean, secondModel?: ModelId) => void;
   disabled: boolean;
+  sessionId: string | null;
 };
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-export default function ChatInput({ onSubmit, disabled }: Props) {
+const DEFAULT_MODEL: ModelId = "claude-sonnet-4-6";
+const DEFAULT_MODEL2: ModelId = "gpt-4o";
+
+function getSessionModel(sessionId: string | null): { model: ModelId; model2: ModelId } {
+  if (typeof window === "undefined") return { model: DEFAULT_MODEL, model2: DEFAULT_MODEL2 };
+  if (sessionId) {
+    try {
+      const data = JSON.parse(localStorage.getItem("claudia_session_models") || "{}");
+      if (data[sessionId]) return { model: data[sessionId].model || DEFAULT_MODEL, model2: data[sessionId].model2 || DEFAULT_MODEL2 };
+    } catch {}
+  }
+  // Fallback to global last-used
+  return {
+    model: (localStorage.getItem("claudia_model") as ModelId) || DEFAULT_MODEL,
+    model2: (localStorage.getItem("claudia_model2") as ModelId) || DEFAULT_MODEL2,
+  };
+}
+
+function saveSessionModel(sessionId: string | null, model: ModelId, model2: ModelId) {
+  try {
+    localStorage.setItem("claudia_model", model);
+    localStorage.setItem("claudia_model2", model2);
+    if (sessionId) {
+      const data = JSON.parse(localStorage.getItem("claudia_session_models") || "{}");
+      data[sessionId] = { model, model2 };
+      localStorage.setItem("claudia_session_models", JSON.stringify(data));
+    }
+  } catch {}
+}
+
+export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [attachedImages, setAttachedImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelId>(() => {
-    if (typeof window === "undefined") return "claude-sonnet-4-6";
-    return (localStorage.getItem("claudia_model") as ModelId) || "claude-sonnet-4-6";
-  });
+  const [selectedModel, setSelectedModel] = useState<ModelId>(() => getSessionModel(null).model);
   const [debateMode, setDebateMode] = useState(false);
-  const [secondModel, setSecondModel] = useState<ModelId>(() => {
-    if (typeof window === "undefined") return "gpt-4o";
-    return (localStorage.getItem("claudia_model2") as ModelId) || "gpt-4o";
-  });
+  const [secondModel, setSecondModel] = useState<ModelId>(() => getSessionModel(null).model2);
   const dragCounter = useRef(0);
 
   useEffect(() => {
     if (!disabled) ref.current?.focus();
   }, [disabled]);
+
+  // Load per-session model when session changes
+  useEffect(() => {
+    const { model, model2 } = getSessionModel(sessionId);
+    setSelectedModel(model);
+    setSecondModel(model2);
+  }, [sessionId]);
 
   // Clean up object URLs on unmount or change
   useEffect(() => {
@@ -197,7 +229,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
             {/* Model selector */}
             <select
               value={selectedModel}
-              onChange={(e) => { const v = e.target.value as ModelId; setSelectedModel(v); localStorage.setItem("claudia_model", v); }}
+              onChange={(e) => { const v = e.target.value as ModelId; setSelectedModel(v); saveSessionModel(sessionId, v, secondModel); }}
               disabled={disabled}
               className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
             >
@@ -232,7 +264,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
                 <span className="text-t-muted text-xs">vs</span>
                 <select
                   value={secondModel}
-                  onChange={(e) => { const v = e.target.value as ModelId; setSecondModel(v); localStorage.setItem("claudia_model2", v); }}
+                  onChange={(e) => { const v = e.target.value as ModelId; setSecondModel(v); saveSessionModel(sessionId, selectedModel, v); }}
                   disabled={disabled}
                   className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
                 >

@@ -402,7 +402,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <ChatInput onSubmit={handleSubmit} disabled={streaming || status === "loading"} />
+        <ChatInput onSubmit={handleSubmit} disabled={streaming || status === "loading"} sessionId={activeId} />
       </div>
     </div>
   );

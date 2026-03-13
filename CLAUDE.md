@@ -46,4 +46,5 @@ develop に push する前に必ず以下を実行:
 | 本番 | main | claudia.soushu.biz | :8000 | :3000 | claudia |
 | ステージング | develop | dev.claudia.soushu.biz | :8002 | :3002 | claudia_staging |
 
+GCP: e2-small (0.5vCPU / 2GB RAM), bitpoint-bot, us-west1-b
 使用済みポート: 8001 (zenn-content)

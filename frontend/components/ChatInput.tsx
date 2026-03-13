@@ -55,7 +55,8 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Cmd+Enter (Mac) or Ctrl+Enter (Win) to send
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submit();
     }
@@ -202,7 +203,7 @@ export default function ChatInput({ onSubmit, disabled }: Props) {
             ))}
           </select>
           <p className="text-xs text-t-faint text-right hidden md:block">
-            Enter to send / Shift+Enter for newline / Attach images via drag & drop, paste, or clip
+            Cmd+Enter で送信 / 画像はドラッグ&ドロップ、ペースト、クリップで添付
           </p>
         </div>
       </div>

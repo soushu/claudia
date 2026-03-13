@@ -154,7 +154,7 @@ export default function ChatPage() {
         const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", google: "Google" };
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: `${providerNames[provider]} API key is not set. Please set your API key from 'API Key' in the sidebar.`, created_at: new Date().toISOString() },
+          { role: "assistant", content: `${providerNames[provider]} APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。`, created_at: new Date().toISOString() },
         ]);
         setStreaming(false);
         setStreamingText("");
@@ -173,7 +173,7 @@ export default function ChatPage() {
       if (err instanceof Error && err.message === "API_KEY_INVALID") {
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: "API key is invalid. Please set a valid key from 'API Key' in the sidebar.", created_at: new Date().toISOString() },
+          { role: "assistant", content: "APIキーが無効です。サイドバーの「API Key 設定」から正しいキーを設定してください。", created_at: new Date().toISOString() },
         ]);
       } else {
         throw err;

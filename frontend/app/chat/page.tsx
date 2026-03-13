@@ -226,6 +226,13 @@ export default function ChatPage() {
       <SystemPromptModal open={systemPromptModalOpen} onClose={() => setSystemPromptModalOpen(false)} activeSessionId={activeId} />
       <ContextModal open={contextModalOpen} onClose={() => setContextModalOpen(false)} />
 
+      {/* DEV badge for staging environment */}
+      {process.env.NEXT_PUBLIC_ENV === "staging" && (
+        <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
+          DEV
+        </div>
+      )}
+
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Mobile header bar */}

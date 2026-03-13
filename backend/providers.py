@@ -7,7 +7,7 @@ import base64
 import logging
 from typing import AsyncGenerator
 
-from anthropic import AsyncAnthropic, AuthenticationError as AnthropicAuthError, BadRequestError as AnthropicBadRequestError
+from anthropic import AsyncAnthropic, AuthenticationError as AnthropicAuthError, BadRequestError as AnthropicBadRequestError, RateLimitError as AnthropicRateLimitError
 from openai import AsyncOpenAI, AuthenticationError as OpenAIAuthError, RateLimitError as OpenAIRateLimitError
 from google import genai
 from google.genai import types as genai_types
@@ -23,7 +23,12 @@ class ProviderAuthError(Exception):
 
 
 class ProviderRateLimitError(Exception):
-    """API usage limit reached."""
+    """Per-minute rate limit (429)."""
+    pass
+
+
+class ProviderSpendLimitError(Exception):
+    """Monthly spend limit reached."""
     pass
 
 
@@ -86,10 +91,12 @@ async def stream_anthropic(
                 yield text
     except AnthropicAuthError:
         raise ProviderAuthError("Anthropic API key is invalid")
+    except AnthropicRateLimitError as e:
+        raise ProviderRateLimitError(str(e))
     except AnthropicBadRequestError as e:
         msg = str(e)
         if "usage limit" in msg.lower():
-            raise ProviderRateLimitError(msg)
+            raise ProviderSpendLimitError(msg)
         raise ProviderError(f"Anthropic error: {msg}")
 
 

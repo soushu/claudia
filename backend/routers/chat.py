@@ -19,6 +19,7 @@ from backend.providers import (
     stream_provider,
     ProviderAuthError,
     ProviderRateLimitError,
+    ProviderSpendLimitError,
     ProviderError,
 )
 
@@ -101,7 +102,11 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
 
     except ProviderRateLimitError:
         db.rollback()
-        yield "\n\n[ERROR: APIの利用上限に達しました。プロバイダーのダッシュボードで上限設定を確認してください]"
+        yield "\n\n[ERROR: レート制限に達しました。しばらく待ってから再度お試しください]"
+
+    except ProviderSpendLimitError:
+        db.rollback()
+        yield "\n\n[ERROR: APIの月額利用上限に達しました。プロバイダーのダッシュボードで上限設定を引き上げてください]"
 
     except ProviderError as e:
         db.rollback()

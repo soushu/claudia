@@ -42,9 +42,11 @@ export default function Sidebar({ sessions, activeId, onSelect, onDelete, onRena
     const rect = buttonEl.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom;
     const flipUp = spaceBelow < menuHeight + 8;
+    // Align menu's right edge to button's right edge
+    const right = window.innerWidth - rect.right;
     setMenuStyle(flipUp
-      ? { bottom: window.innerHeight - rect.top + 4, right: window.innerWidth - rect.right }
-      : { top: rect.bottom + 4, right: window.innerWidth - rect.right }
+      ? { bottom: window.innerHeight - rect.top + 4, right }
+      : { top: rect.bottom + 4, right }
     );
     setMenuOpenId(sessionId);
   }, [menuOpenId]);
@@ -181,7 +183,7 @@ export default function Sidebar({ sessions, activeId, onSelect, onDelete, onRena
                         e.stopPropagation();
                         openMenu(s.id, e.currentTarget);
                       }}
-                      className="md:opacity-0 md:group-hover:opacity-100 text-t-muted hover:text-t-secondary transition-opacity text-sm p-1 flex-shrink-0"
+                      className={`${menuOpenId === s.id ? "opacity-100" : "md:opacity-0 md:group-hover:opacity-100"} text-t-muted hover:text-t-secondary transition-opacity text-sm p-1 flex-shrink-0`}
                     >
                       <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
                         <circle cx="8" cy="3" r="1.5" />

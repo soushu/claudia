@@ -3,23 +3,24 @@ set -euo pipefail
 
 DEPLOY_DIR="/home/yutookiguchi/claudia"
 BRANCH="main"
+SUDO_USER="sudo -u yutookiguchi"
 
 echo "=== Deploying PRODUCTION (${BRANCH}) ==="
 
 cd "$DEPLOY_DIR"
 
 # Pull latest code
-git fetch origin "$BRANCH"
-git reset --hard "origin/${BRANCH}"
+$SUDO_USER git fetch origin "$BRANCH"
+$SUDO_USER git reset --hard "origin/${BRANCH}"
 
 # Backend: install dependencies + migrate
-venv/bin/pip install -q -r requirements.txt
-venv/bin/alembic upgrade head
+$SUDO_USER venv/bin/pip install -q -r requirements.txt
+$SUDO_USER venv/bin/alembic upgrade head
 
 # Frontend: install dependencies + build
 cd frontend
-npm ci --prefer-offline
-NODE_OPTIONS="--max_old_space_size=512" npm run build
+$SUDO_USER npm ci --prefer-offline
+$SUDO_USER bash -c 'NODE_OPTIONS="--max_old_space_size=512" npm run build'
 cd ..
 
 # Restart services

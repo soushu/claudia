@@ -1,5 +1,8 @@
 import asyncio
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
@@ -95,12 +98,14 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
         db.rollback()
         yield "\n\n[ERROR: APIキーが無効です。正しいキーを設定してください]"
 
-    except ProviderError:
+    except ProviderError as e:
         db.rollback()
+        logger.error("ProviderError: %s", e)
         yield "\n\n[ERROR: メッセージの生成中にエラーが発生しました]"
 
-    except Exception:
+    except Exception as e:
         db.rollback()
+        logger.error("Unexpected error in stream_response: %s", e, exc_info=True)
         yield "\n\n[ERROR: メッセージの生成中にエラーが発生しました]"
 
     finally:

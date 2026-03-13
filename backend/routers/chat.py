@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,10 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
 
         assistant_msg = Message(session_id=session_id, role="assistant", content=full_response)
         db.add(assistant_msg)
+        # Update session's updated_at
+        chat_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        if chat_session:
+            chat_session.updated_at = datetime.now(timezone.utc)
         db.commit()
 
         # Fire-and-forget context extraction (always uses Anthropic key)

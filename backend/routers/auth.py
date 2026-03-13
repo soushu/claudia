@@ -21,6 +21,12 @@ class UpsertUserRequest(BaseModel):
     google_id: str | None = None
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -55,6 +61,25 @@ def upsert_user(
         db.commit()
         db.refresh(user)
 
+    return {"id": str(user.id), "email": user.email, "name": user.name}
+
+
+@router.post("/register")
+def register(req: RegisterRequest, db: DBSession = Depends(get_db)):
+    """メール/パスワードで新規ユーザー登録。"""
+    existing = db.query(User).filter(User.email == req.email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    user = User(
+        email=req.email,
+        name=req.name or req.email.split("@")[0],
+        password_hash=pwd_context.hash(req.password),
+        auth_provider="email",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
     return {"id": str(user.id), "email": user.email, "name": user.name}
 
 

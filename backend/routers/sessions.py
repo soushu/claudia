@@ -45,7 +45,7 @@ def list_sessions(
     sessions = (
         db.query(ChatSession)
         .filter(ChatSession.user_id == current_user_id)
-        .order_by(ChatSession.created_at.desc())
+        .order_by(ChatSession.updated_at.desc().nullslast(), ChatSession.created_at.desc())
         .all()
     )
     return [

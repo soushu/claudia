@@ -110,31 +110,33 @@ export default function ContextModal({ open, onClose }: Props) {
         </p>
 
         {/* Add form */}
-        <div className="flex gap-2 mb-4">
+        <div className="flex flex-col gap-2 mb-4">
           <input
             type="text"
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
             placeholder="新しいコンテキストを追加..."
-            className="flex-1 bg-theme-surface text-t-secondary placeholder-t-placeholder text-sm px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-border-secondary"
+            className="w-full bg-theme-surface text-t-secondary placeholder-t-placeholder text-sm px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-border-secondary"
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
-          <select
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-            className="bg-theme-surface text-t-secondary text-sm px-2 py-2 rounded-lg outline-none"
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleAdd}
-            disabled={adding || !newContent.trim()}
-            className="px-3 py-2 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 text-white text-sm transition-colors"
-          >
-            追加
-          </button>
+          <div className="flex gap-2">
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="flex-1 bg-theme-surface text-t-secondary text-sm px-2 py-2 rounded-lg outline-none"
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleAdd}
+              disabled={adding || !newContent.trim()}
+              className="px-3 py-2 rounded-lg bg-accent hover:bg-accent-hover disabled:opacity-40 text-white text-sm transition-colors whitespace-nowrap"
+            >
+              追加
+            </button>
+          </div>
         </div>
 
         {/* Context list */}

@@ -39,9 +39,9 @@ MODEL_REGISTRY: dict[str, dict] = {
     "gpt-4o-mini":                {"provider": "openai",    "label": "GPT-4o mini",    "supports_images": True,  "supports_web_search": False},
     "o3-mini":                    {"provider": "openai",    "label": "o3-mini",         "supports_images": False, "supports_web_search": False},
     # Google
-    "gemini-2.0-flash":           {"provider": "google",    "label": "Gemini 2.0 Flash", "supports_images": True, "supports_web_search": False},
-    "gemini-2.0-pro":             {"provider": "google",    "label": "Gemini 2.0 Pro",   "supports_images": True, "supports_web_search": False},
+    "gemini-2.5-flash":           {"provider": "google",    "label": "Gemini 2.5 Flash", "supports_images": True, "supports_web_search": False},
     "gemini-2.5-pro":             {"provider": "google",    "label": "Gemini 2.5 Pro",   "supports_images": True, "supports_web_search": False},
+    "gemini-3.1-flash-lite":      {"provider": "google",    "label": "Gemini 3.1 Flash Lite", "supports_images": True, "supports_web_search": False},
 }
 
 ALLOWED_MODELS = set(MODEL_REGISTRY.keys())

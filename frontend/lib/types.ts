@@ -7,9 +7,9 @@ export type ModelId =
   | "gpt-4o"
   | "gpt-4o-mini"
   | "o3-mini"
-  | "gemini-2.0-flash"
-  | "gemini-2.0-pro"
-  | "gemini-2.5-pro";
+  | "gemini-2.5-flash"
+  | "gemini-2.5-pro"
+  | "gemini-3.1-flash-lite";
 
 export type ModelOption = { id: ModelId; label: string };
 
@@ -42,9 +42,9 @@ export const MODEL_GROUPS: ModelGroup[] = [
     provider: "google",
     label: "Google",
     models: [
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-      { id: "gemini-2.0-pro", label: "Gemini 2.0 Pro" },
+      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
       { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+      { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
     ],
   },
 ];

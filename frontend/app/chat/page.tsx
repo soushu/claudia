@@ -8,7 +8,7 @@ import QAPairBlock from "@/components/QAPairBlock";
 import ApiKeyModal from "@/components/ApiKeyModal";
 import SystemPromptModal from "@/components/SystemPromptModal";
 import ContextModal from "@/components/ContextModal";
-import { createSession, listSessions, getMessages, deleteSession, updateSession, streamChat, streamDebate } from "@/lib/api";
+import { createSession, listSessions, getMessages, deleteSession, updateSession, toggleSessionStar, streamChat, streamDebate } from "@/lib/api";
 import { getApiKeyForProvider } from "@/lib/apiKeyStore";
 import type { Session, Message, QAPair, ImageAttachment, ModelId, DebateStepId } from "@/lib/types";
 import { getProviderForModel, parseDebateContent } from "@/lib/types";
@@ -233,6 +233,17 @@ export default function ChatPage() {
     }
   }
 
+  async function handleToggleStar(id: string) {
+    try {
+      const updated = await toggleSessionStar(id);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, is_starred: updated.is_starred } : s))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function fileToBase64(file: File): Promise<ImageAttachment> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -394,6 +405,7 @@ export default function ChatPage() {
         onSelect={handleSelect}
         onDelete={handleDelete}
         onRename={handleRename}
+        onToggleStar={handleToggleStar}
         onNew={handleNew}
         userEmail={authSession?.user?.email}
         onOpenApiKeyModal={() => setApiKeyModalOpen(true)}

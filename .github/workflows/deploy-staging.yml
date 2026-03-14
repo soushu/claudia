@@ -18,6 +18,15 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from source
+        id: info
+        run: |
+          VERSION=$(grep -oP 'DEV v[\d.]+' frontend/app/chat/page.tsx || echo "DEV v?")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -51,7 +60,8 @@ jobs:
             EMOJI="❌"
             STATUS="失敗"
           fi
+          VERSION="${{ steps.info.outputs.version }}"
           COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1)
           curl -sX POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
-            -d "{\"text\": \"${EMOJI} *claudia ステージング* デプロイ${STATUS}\n>${COMMIT_MSG}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"
+            -d "{\"text\": \"${EMOJI} *claudia ステージング* デプロイ${STATUS} [${VERSION}]\n>${COMMIT_MSG}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"

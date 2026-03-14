@@ -423,7 +423,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v32.9
+          DEV v33.0
         </div>
       )}
 
@@ -458,9 +458,35 @@ export default function ChatPage() {
             )}
 
             {messages.length === 0 && !streaming && !loadingMessages && status !== "loading" && (
-              <p className="text-t-faint text-center mt-20 text-sm">
-                Start a conversation
-              </p>
+              <div className="flex flex-col items-center justify-center mt-16 md:mt-24 px-4">
+                <h2 className="text-2xl md:text-3xl font-semibold text-t-primary mb-2">claudia</h2>
+                <p className="text-t-tertiary text-sm mb-8">何でも聞いてください</p>
+                <div className="grid grid-cols-2 gap-2 md:gap-3 w-full max-w-md">
+                  {[
+                    { icon: "📝", text: "文章を添削して" },
+                    { icon: "💡", text: "アイデアを出して" },
+                    { icon: "🔍", text: "コードをレビューして" },
+                    { icon: "✈️", text: "旅行プランを考えて" },
+                  ].map((s) => (
+                    <button
+                      key={s.text}
+                      onClick={() => {
+                        const ta = document.querySelector<HTMLTextAreaElement>("textarea");
+                        if (ta) {
+                          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+                          nativeInputValueSetter?.call(ta, s.text);
+                          ta.dispatchEvent(new Event("input", { bubbles: true }));
+                          ta.focus();
+                        }
+                      }}
+                      className="flex items-start gap-2 p-3 md:p-4 rounded-xl border border-border-primary bg-theme-surface hover:bg-theme-hover text-left transition-colors"
+                    >
+                      <span className="text-lg flex-shrink-0">{s.icon}</span>
+                      <span className="text-sm text-t-secondary">{s.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {pairs.map((pair, i) => {

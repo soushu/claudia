@@ -20,17 +20,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
 
       - name: Extract version and change summary
         id: info
         run: |
           VERSION=$(grep -oP 'DEV v[\d.]+' frontend/app/chat/page.tsx || echo "DEV v?")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # Get meaningful commit messages (skip merge commits)
-          CHANGES=$(git log --no-merges --format="%s" HEAD~1..HEAD 2>/dev/null | head -3 | tr '\n' ' ' || echo "")
+          # For merge commits: get feature branch commit messages via HEAD^1..HEAD^2
+          CHANGES=""
+          if git rev-parse HEAD^2 >/dev/null 2>&1; then
+            CHANGES=$(git log --no-merges --format="%s" HEAD^1..HEAD^2 2>/dev/null | head -3 | paste -sd ", " -)
+          fi
+          # Fallback: use the commit message itself (for non-merge pushes)
           if [ -z "$CHANGES" ]; then
-            # Fallback: extract feature name from merge commit message
-            CHANGES=$(echo '${{ github.event.head_commit.message }}' | sed -n "s/.*feature\\/\\(.*\\)' into.*/\\1/p" | tr '-' ' ')
+            CHANGES=$(echo '${{ github.event.head_commit.message }}' | head -1)
           fi
           echo "changes=$CHANGES" >> "$GITHUB_OUTPUT"
 

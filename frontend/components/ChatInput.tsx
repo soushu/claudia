@@ -51,6 +51,8 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
   const [debateMode, setDebateMode] = useState(false);
   const [secondModel, setSecondModel] = useState<ModelId>(() => getSessionModel(null).model2);
   const [thinking, setThinking] = useState(false);
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const modeMenuRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
 
   const supportsThinking = useMemo(() => {
@@ -76,6 +78,18 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
       previews.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [previews]);
+
+  // Close mode menu on outside click
+  useEffect(() => {
+    if (!modeMenuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
+        setModeMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [modeMenuOpen]);
 
   function handleFiles(files: FileList | null) {
     if (!files) return;
@@ -139,6 +153,8 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
     setDragging(false);
     handleFiles(e.dataTransfer?.files || null);
   }, []);
+
+  const modeLabel = thinking && supportsThinking ? "思考モード" : "高速モード";
 
   return (
     <div
@@ -212,24 +228,10 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
               }}
               placeholder="Type a message..."
               rows={2}
-              className="w-full bg-theme-input text-t-secondary placeholder-t-placeholder text-sm px-4 py-3 pr-24 rounded-xl resize-none outline-none focus:ring-1 focus:ring-border-secondary disabled:opacity-50 font-sans"
+              className="w-full bg-theme-input text-t-secondary placeholder-t-placeholder text-sm px-4 py-3 pr-12 rounded-xl resize-none outline-none focus:ring-1 focus:ring-border-secondary disabled:opacity-50 font-sans"
             />
-            {/* Thinking toggle + Send button — bottom-right inside textarea */}
+            {/* Send button — bottom-right inside textarea */}
             <div className="absolute right-2 bottom-2 flex items-center gap-1">
-              {supportsThinking && (
-                <button
-                  onClick={() => setThinking(!thinking)}
-                  disabled={disabled}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors disabled:opacity-50 ${
-                    thinking
-                      ? "bg-purple-500/20 text-purple-600 dark:text-purple-400"
-                      : "text-t-muted hover:text-t-secondary hover:bg-theme-hover"
-                  }`}
-                  title="思考モード"
-                >
-                  🧠
-                </button>
-              )}
               <button
                 onClick={submit}
                 disabled={disabled}
@@ -248,48 +250,17 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
             <p className="text-blue-400 text-sm font-medium">Drop images to attach</p>
           </div>
         )}
-        <div className="mt-1 ml-11">
-          <div className="flex items-center gap-2">
-            {/* Model selector */}
-            <select
-              value={selectedModel}
-              onChange={(e) => { const v = e.target.value as ModelId; setSelectedModel(v); saveSessionModel(sessionId, v, secondModel); }}
-              disabled={disabled}
-              className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
-            >
-              {MODEL_GROUPS.map((g) => (
-                <optgroup key={g.provider} label={g.label}>
-                  {g.models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-
-            {/* Debate mode toggle */}
-            <button
-              onClick={() => setDebateMode(!debateMode)}
-              disabled={disabled}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors disabled:opacity-50 ${
-                debateMode
-                  ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/40"
-                  : "text-t-muted hover:text-t-secondary hover:bg-theme-hover border border-transparent"
-              }`}
-              title="議論モード"
-            >
-              🔀 議論
-            </button>
-          </div>
-
-          {/* Second model (debate mode) — on a new line with "vs" prefix */}
-          {debateMode && (
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-t-muted text-xs">vs</span>
+        <div className="flex items-start justify-between mt-1 ml-11 gap-2">
+          <div>
+            {/* Model selectors — aligned by model name */}
+            <div className="grid items-center" style={{ gridTemplateColumns: "auto 1fr auto" }}>
+              {/* Row 1: model1 + debate toggle */}
+              <span className="text-t-muted text-xs text-right pr-1.5 select-none">
+                {debateMode ? "\u00A0" : ""}
+              </span>
               <select
-                value={secondModel}
-                onChange={(e) => { const v = e.target.value as ModelId; setSecondModel(v); saveSessionModel(sessionId, selectedModel, v); }}
+                value={selectedModel}
+                onChange={(e) => { const v = e.target.value as ModelId; setSelectedModel(v); saveSessionModel(sessionId, v, secondModel); }}
                 disabled={disabled}
                 className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
               >
@@ -303,6 +274,107 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
                   </optgroup>
                 ))}
               </select>
+              <button
+                onClick={() => setDebateMode(!debateMode)}
+                disabled={disabled}
+                className={`ml-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-colors disabled:opacity-50 ${
+                  debateMode
+                    ? "bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/40"
+                    : "text-t-muted hover:text-t-secondary hover:bg-theme-hover border border-transparent"
+                }`}
+                title="議論モード"
+              >
+                議論
+              </button>
+
+              {/* Row 2: vs + model2 (only in debate mode) */}
+              {debateMode && (
+                <>
+                  <span className="text-t-muted text-xs text-right pr-1.5 select-none">vs</span>
+                  <select
+                    value={secondModel}
+                    onChange={(e) => { const v = e.target.value as ModelId; setSecondModel(v); saveSessionModel(sessionId, selectedModel, v); }}
+                    disabled={disabled}
+                    className="bg-transparent text-t-muted text-xs outline-none disabled:opacity-50 cursor-pointer"
+                  >
+                    {MODEL_GROUPS.map((g) => (
+                      <optgroup key={g.provider} label={g.label}>
+                        {g.models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <span />
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Mode selector — Gemini-style dropdown */}
+          {supportsThinking && (
+            <div className="relative flex-shrink-0" ref={modeMenuRef}>
+              <button
+                onClick={() => setModeMenuOpen(!modeMenuOpen)}
+                disabled={disabled}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-colors disabled:opacity-50 ${
+                  thinking
+                    ? "bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/40"
+                    : "text-t-muted hover:text-t-secondary border border-border-secondary"
+                }`}
+              >
+                {modeLabel}
+                <svg className={`w-3 h-3 transition-transform ${modeMenuOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown menu */}
+              {modeMenuOpen && (
+                <div className="absolute bottom-full right-0 mb-1 w-56 bg-theme-input border border-border-secondary rounded-xl shadow-lg overflow-hidden z-20">
+                  {/* Fast mode */}
+                  <button
+                    onClick={() => { setThinking(false); setModeMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 transition-colors ${
+                      !thinking
+                        ? "bg-theme-hover"
+                        : "hover:bg-theme-hover"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-t-secondary">高速モード</span>
+                      {!thinking && (
+                        <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <p className="text-xs text-t-muted mt-0.5">素早く回答</p>
+                  </button>
+
+                  {/* Thinking mode */}
+                  <button
+                    onClick={() => { setThinking(true); setModeMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 transition-colors ${
+                      thinking
+                        ? "bg-theme-hover"
+                        : "hover:bg-theme-hover"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-t-secondary">思考モード</span>
+                      {thinking && (
+                        <svg className="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <p className="text-xs text-t-muted mt-0.5">複雑な問題を解決</p>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

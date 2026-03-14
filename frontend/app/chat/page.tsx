@@ -65,7 +65,6 @@ export default function ChatPage() {
     currentStep: DebateStepId | null;
     rawText: string;
   } | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const pairs = useMemo(() => groupIntoPairs(messages), [messages]);
 
@@ -81,17 +80,18 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // Scroll to bottom only when messages array changes (new message added / session switch),
-  // NOT during streaming — mimics Gemini behavior where streaming doesn't push viewport.
-  const prevMessagesLenRef = useRef(messages.length);
+  // Ref to the last QAPairBlock element — used to scroll the user's question to the top
+  const lastPairRef = useRef<HTMLDivElement>(null);
+  // Flag: scroll the latest question into view on next render
+  const shouldScrollToQuestion = useRef(false);
+
+  // When user sends a message, scroll so the question appears at the top of the viewport
   useEffect(() => {
-    const prev = prevMessagesLenRef.current;
-    prevMessagesLenRef.current = messages.length;
-    // Scroll when messages are added (user sent or response saved) or session switched (prev was different length)
-    if (messages.length !== prev) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollToQuestion.current && lastPairRef.current) {
+      lastPairRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      shouldScrollToQuestion.current = false;
     }
-  }, [messages]);
+  });
 
   // Prevent body scroll when sidebar is open on mobile (iOS Safari fix)
   useEffect(() => {
@@ -206,6 +206,7 @@ export default function ChatPage() {
       ...prev,
       { role: "user", content, created_at: new Date().toISOString(), images: images.length > 0 ? images : undefined },
     ]);
+    shouldScrollToQuestion.current = true;
 
     let full = "";
     try {
@@ -383,15 +384,17 @@ export default function ChatPage() {
 
             {pairs.map((pair, i) => {
               const isLastAndStreaming = i === pairs.length - 1 && streaming && !pair.assistant;
+              const isLast = i === pairs.length - 1;
               return (
-                <QAPairBlock
-                  key={i}
-                  pair={pair}
-                  collapsed={isCollapsed(i)}
-                  onToggle={() => handleToggle(i)}
-                  streamingText={isLastAndStreaming ? streamingText : undefined}
-                  streamingDebate={isLastAndStreaming ? streamingDebate : null}
-                />
+                <div key={i} ref={isLast ? lastPairRef : undefined}>
+                  <QAPairBlock
+                    pair={pair}
+                    collapsed={isCollapsed(i)}
+                    onToggle={() => handleToggle(i)}
+                    streamingText={isLastAndStreaming ? streamingText : undefined}
+                    streamingDebate={isLastAndStreaming ? streamingDebate : null}
+                  />
+                </div>
               );
             })}
 
@@ -418,7 +421,6 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div ref={bottomRef} />
           </div>
         </div>
 

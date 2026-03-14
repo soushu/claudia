@@ -48,10 +48,21 @@ export default function ChatPage() {
       return next;
     });
   }, []);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveIdRaw] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return localStorage.getItem("claudia_active_session") || null; } catch { return null; }
+  });
+  const setActiveId = useCallback((id: string | null) => {
+    setActiveIdRaw(id);
+    try {
+      if (id) localStorage.setItem("claudia_active_session", id);
+      else localStorage.removeItem("claudia_active_session");
+    } catch {}
+  }, []);
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
+  const [streamingModel, setStreamingModel] = useState<string | undefined>(undefined);
   const [manualToggles, setManualToggles] = useState<Set<number>>(new Set());
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
@@ -77,6 +88,27 @@ export default function ChatPage() {
       .then(setSessions)
       .catch(console.error)
       .finally(() => setLoadingSessions(false));
+
+    // Restore active session on reload
+    if (activeId) {
+      const cacheKey = `claudia_msgs_${activeId}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) setMessages(JSON.parse(cached));
+      } catch {}
+      setLoadingMessages(true);
+      getMessages(activeId)
+        .then((msgs) => {
+          setMessages(msgs);
+          shouldScrollToQuestion.current = true;
+          try {
+            const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
+            localStorage.setItem(cacheKey, JSON.stringify(light));
+          } catch {}
+        })
+        .catch(console.error)
+        .finally(() => setLoadingMessages(false));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -86,6 +118,8 @@ export default function ChatPage() {
   const spacerRef = useRef<HTMLDivElement>(null);
   // Flag: scroll the latest question into view on next render
   const shouldScrollToQuestion = useRef(false);
+  // Track if we need to re-scroll when first streaming chunk arrives (mobile keyboard dismiss fix)
+  const needsStreamingScroll = useRef(false);
 
   // When user sends a message, scroll so the question appears at the top of the viewport
   useLayoutEffect(() => {
@@ -94,6 +128,27 @@ export default function ChatPage() {
       shouldScrollToQuestion.current = false;
     }
   });
+
+  // Re-scroll when first streaming chunk arrives (keyboard may have closed, changing viewport)
+  useLayoutEffect(() => {
+    if (needsStreamingScroll.current && streamingText && lastPairRef.current) {
+      lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+      needsStreamingScroll.current = false;
+    }
+  }, [streamingText]);
+
+  // Re-scroll on viewport resize (mobile keyboard dismiss changes viewport height)
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function handleResize() {
+      if (needsStreamingScroll.current && lastPairRef.current) {
+        lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+      }
+    }
+    vv.addEventListener("resize", handleResize);
+    return () => vv.removeEventListener("resize", handleResize);
+  }, []);
 
   // Dynamic spacer: use layoutEffect to set height before paint, avoiding flicker
   useLayoutEffect(() => {
@@ -140,6 +195,7 @@ export default function ChatPage() {
     try {
       const msgs = await getMessages(id);
       setMessages(msgs);
+      shouldScrollToQuestion.current = true;
       // Cache without image data to save localStorage space
       try {
         const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
@@ -198,6 +254,7 @@ export default function ChatPage() {
   async function handleSubmit(content: string, imageFiles: File[], model: ModelId, debateMode?: boolean, secondModel?: ModelId, thinking?: boolean) {
     setStreaming(true);
     setStreamingText("");
+    setStreamingModel(model);
     setStreamingDebate(debateMode ? { modelA: model, modelB: secondModel!, currentStep: null, rawText: "" } : null);
 
     let sessionId = activeId;
@@ -217,6 +274,7 @@ export default function ChatPage() {
       { role: "user", content, created_at: new Date().toISOString(), images: images.length > 0 ? images : undefined },
     ]);
     shouldScrollToQuestion.current = true;
+    needsStreamingScroll.current = true;
 
     let full = "";
     try {
@@ -287,7 +345,7 @@ export default function ChatPage() {
         }
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: full, created_at: new Date().toISOString() },
+          { role: "assistant", content: full, created_at: new Date().toISOString(), model },
         ]);
       }
     } catch (err) {
@@ -302,6 +360,7 @@ export default function ChatPage() {
     } finally {
       setStreaming(false);
       setStreamingText("");
+      setStreamingModel(undefined);
       setStreamingDebate(null);
     }
   }
@@ -352,7 +411,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v30.9
+          DEV v31.6
         </div>
       )}
 
@@ -403,6 +462,7 @@ export default function ChatPage() {
                     onToggle={() => handleToggle(i)}
                     streamingText={isLastAndStreaming ? streamingText : undefined}
                     streamingDebate={isLastAndStreaming ? streamingDebate : null}
+                    streamingModel={isLastAndStreaming ? streamingModel : undefined}
                   />
                 </div>
               );

@@ -18,6 +18,27 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Extract version and change summary
+        id: info
+        run: |
+          VERSION=$(grep -oP 'DEV v[\d.]+' frontend/app/chat/page.tsx || echo "DEV v?")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # For merge commits: get feature branch commit messages via HEAD^1..HEAD^2
+          CHANGES=""
+          if git rev-parse HEAD^2 >/dev/null 2>&1; then
+            CHANGES=$(git log --no-merges --format="%s" HEAD^1..HEAD^2 2>/dev/null | head -3 | paste -sd ", " -)
+          fi
+          # Fallback: use the commit message itself (for non-merge pushes)
+          if [ -z "$CHANGES" ]; then
+            CHANGES=$(echo '${{ github.event.head_commit.message }}' | head -1)
+          fi
+          echo "changes=$CHANGES" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
@@ -51,7 +72,8 @@ jobs:
             EMOJI="❌"
             STATUS="失敗"
           fi
-          COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1)
+          VERSION="${{ steps.info.outputs.version }}"
+          CHANGES="${{ steps.info.outputs.changes }}"
           curl -sX POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
-            -d "{\"text\": \"${EMOJI} *claudia ステージング* デプロイ${STATUS}\n>${COMMIT_MSG}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"
+            -d "{\"text\": \"${EMOJI} *claudia ステージング* デプロイ${STATUS} [${VERSION}]\n>${CHANGES}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"

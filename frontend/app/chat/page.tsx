@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import Sidebar from "@/components/Sidebar";
 import ChatInput from "@/components/ChatInput";
@@ -65,7 +65,6 @@ export default function ChatPage() {
     currentStep: DebateStepId | null;
     rawText: string;
   } | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const pairs = useMemo(() => groupIntoPairs(messages), [messages]);
 
@@ -81,9 +80,28 @@ export default function ChatPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingText]);
+  // Ref to the last QAPairBlock element — used to scroll the user's question to the top
+  const lastPairRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
+  // Flag: scroll the latest question into view on next render
+  const shouldScrollToQuestion = useRef(false);
+
+  // When user sends a message, scroll so the question appears at the top of the viewport
+  useLayoutEffect(() => {
+    if (shouldScrollToQuestion.current && lastPairRef.current) {
+      lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+      shouldScrollToQuestion.current = false;
+    }
+  });
+
+  // Dynamic spacer: use layoutEffect to set height before paint, avoiding flicker
+  useLayoutEffect(() => {
+    if (!scrollContainerRef.current || !lastPairRef.current || !spacerRef.current) return;
+    const viewportH = scrollContainerRef.current.clientHeight;
+    const pairH = lastPairRef.current.clientHeight;
+    spacerRef.current.style.height = `${Math.max(0, viewportH - pairH)}px`;
+  });
 
   // Prevent body scroll when sidebar is open on mobile (iOS Safari fix)
   useEffect(() => {
@@ -198,6 +216,7 @@ export default function ChatPage() {
       ...prev,
       { role: "user", content, created_at: new Date().toISOString(), images: images.length > 0 ? images : undefined },
     ]);
+    shouldScrollToQuestion.current = true;
 
     let full = "";
     try {
@@ -333,7 +352,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV
+          DEV v30.9
         </div>
       )}
 
@@ -353,7 +372,7 @@ export default function ChatPage() {
         </div>
 
         {/* Message list */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-6">
           <div className="max-w-3xl mx-auto space-y-6">
             {status === "loading" && (
               <div className="flex justify-center mt-20">
@@ -375,15 +394,17 @@ export default function ChatPage() {
 
             {pairs.map((pair, i) => {
               const isLastAndStreaming = i === pairs.length - 1 && streaming && !pair.assistant;
+              const isLast = i === pairs.length - 1;
               return (
-                <QAPairBlock
-                  key={i}
-                  pair={pair}
-                  collapsed={isCollapsed(i)}
-                  onToggle={() => handleToggle(i)}
-                  streamingText={isLastAndStreaming ? streamingText : undefined}
-                  streamingDebate={isLastAndStreaming ? streamingDebate : null}
-                />
+                <div key={i} ref={isLast ? lastPairRef : undefined}>
+                  <QAPairBlock
+                    pair={pair}
+                    collapsed={isCollapsed(i)}
+                    onToggle={() => handleToggle(i)}
+                    streamingText={isLastAndStreaming ? streamingText : undefined}
+                    streamingDebate={isLastAndStreaming ? streamingDebate : null}
+                  />
+                </div>
               );
             })}
 
@@ -410,7 +431,8 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div ref={bottomRef} />
+            {/* Dynamic spacer: CSS provides initial height, JS shrinks it as response grows */}
+            <div ref={spacerRef} className="h-[70dvh]" />
           </div>
         </div>
 

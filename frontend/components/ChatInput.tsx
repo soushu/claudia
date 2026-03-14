@@ -61,9 +61,7 @@ export default function ChatInput({ onSubmit, disabled, sessionId }: Props) {
     return false;
   }, [selectedModel]);
 
-  useEffect(() => {
-    if (!disabled) ref.current?.focus();
-  }, [disabled]);
+  // Do NOT auto-focus after streaming ends — on mobile this opens the keyboard
 
   // Load per-session model when session changes
   useEffect(() => {

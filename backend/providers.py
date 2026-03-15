@@ -3,6 +3,7 @@ Multi-provider abstraction for streaming LLM responses.
 Supports Anthropic (Claude), OpenAI (GPT), and Google (Gemini).
 """
 
+import asyncio
 import base64
 import logging
 from typing import AsyncGenerator
@@ -259,6 +260,9 @@ async def stream_google(
 
 # ── Dispatch ────────────────────────────────────────────────
 
+STREAM_TIMEOUT_SECONDS = 300  # 5 minutes per stream
+
+
 async def stream_provider(
     model: str,
     messages: list[dict],
@@ -278,5 +282,22 @@ async def stream_provider(
     else:
         raise ProviderError(f"Unsupported provider: {provider}")
 
-    async for text in gen:
-        yield text
+    try:
+        async for text in _timeout_generator(gen, STREAM_TIMEOUT_SECONDS):
+            yield text
+    except asyncio.TimeoutError:
+        logger.warning("Stream timed out after %ds for model %s", STREAM_TIMEOUT_SECONDS, model)
+        yield "\n\n⚠️ 応答がタイムアウトしました。もう一度お試しください。"
+
+
+async def _timeout_generator(
+    gen: AsyncGenerator[str, None], timeout: float
+) -> AsyncGenerator[str, None]:
+    """Wrap an async generator with a per-chunk timeout."""
+    ait = gen.__aiter__()
+    while True:
+        try:
+            chunk = await asyncio.wait_for(ait.__anext__(), timeout=timeout)
+            yield chunk
+        except StopAsyncIteration:
+            break

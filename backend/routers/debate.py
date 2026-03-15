@@ -11,7 +11,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
@@ -29,12 +29,9 @@ from backend.providers import (
     ProviderError,
 )
 
+from backend.schemas import ImageAttachment, validate_image_count
+
 router = APIRouter(prefix="/debate", tags=["debate"])
-
-
-class ImageAttachment(BaseModel):
-    media_type: str
-    data: str
 
 
 class DebateRequest(BaseModel):
@@ -43,6 +40,11 @@ class DebateRequest(BaseModel):
     model_a: str = "claude-sonnet-4-6"
     model_b: str = "gpt-4o"
     thinking: bool = False
+
+    @field_validator("images")
+    @classmethod
+    def check_image_count(cls, v: list[ImageAttachment]) -> list[ImageAttachment]:
+        return validate_image_count(v)
 
 
 # ── Debate prompts ──────────────────────────────────────

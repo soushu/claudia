@@ -186,7 +186,7 @@ export default function Sidebar({ sessions, activeId, onSelect, onDelete, onRena
                     )}
                     <span className="flex-1 text-sm truncate">{s.title}</span>
                     {/* Tooltip — rendered outside truncate to avoid overflow:hidden clipping */}
-                    <span className="pointer-events-none absolute left-2 top-full mt-0.5 z-50 hidden group-hover:block max-w-[240px] whitespace-normal break-words rounded-lg bg-theme-surface border border-border-primary shadow-lg px-3 py-2 text-xs text-t-secondary">
+                    <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 hidden group-hover:block max-w-[240px] whitespace-normal break-words rounded-lg bg-theme-surface border border-border-primary shadow-lg px-3 py-2 text-xs text-t-secondary">
                       {s.title}
                     </span>
                     {/* Three-dot menu button */}

@@ -53,7 +53,7 @@ jobs:
           gcloud compute ssh yutookiguchi@bitpoint-bot \
             --zone=us-west1-b \
             --tunnel-through-iap \
-            --command="bash /home/yutookiguchi/claudia-staging/deploy/deploy-staging.sh"
+            --command="DEPLOY_USER=yutookiguchi bash /home/yutookiguchi/claudia-staging/deploy/deploy-staging.sh"
 
       - name: Health check
         run: |

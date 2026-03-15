@@ -7,11 +7,16 @@ main(本番) → develop(統合) → feature/*(機能) の3層構成。
 1. ソースコードの修正・追加は **必ず feature/* ブランチを切って行う**
 2. feature/* → develop にマージ → ステージングで動作確認
 3. ユーザーが **明示的に「mainにマージして」と指示するまで** develop → main へのマージは行わない
+4. マージは **必ず `--no-ff`** で行う（`git merge --no-ff feature/*`）。fast-forwardマージ禁止。マージコミットを必ず残すこと
+
+**例外:**
+- CLAUDE.md・ドキュメントのみの変更は develop に直接コミット可（デプロイに影響しないため）
 
 **禁止事項:**
 - main に直接コミットしない
-- develop に直接コミットしない（必ず feature/* 経由）
+- develop に直接コミットしない（必ず feature/* 経由。上記例外を除く）
 - feature ブランチはマージ後も削除しない
+- fast-forwardマージしない（必ず `--no-ff` を付ける）
 - feature ブランチの作業が全て完了してから develop にマージする（途中で何度もマージしない。develop への push のたびにデプロイが走るため）
 
 ## デプロイ前チェック（厳守）

@@ -37,26 +37,26 @@ export default function ChatPage() {
   const [sessions, setSessionsRaw] = useState<Session[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      const cached = localStorage.getItem("claudia_sessions");
+      const cached = localStorage.getItem("mazelan_sessions");
       return cached ? JSON.parse(cached) : [];
     } catch { return []; }
   });
   const setSessions = useCallback((update: Session[] | ((prev: Session[]) => Session[])) => {
     setSessionsRaw((prev) => {
       const next = typeof update === "function" ? update(prev) : update;
-      try { localStorage.setItem("claudia_sessions", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("mazelan_sessions", JSON.stringify(next)); } catch {}
       return next;
     });
   }, []);
   const [activeId, setActiveIdRaw] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
-    try { return localStorage.getItem("claudia_active_session") || null; } catch { return null; }
+    try { return localStorage.getItem("mazelan_active_session") || null; } catch { return null; }
   });
   const setActiveId = useCallback((id: string | null) => {
     setActiveIdRaw(id);
     try {
-      if (id) localStorage.setItem("claudia_active_session", id);
-      else localStorage.removeItem("claudia_active_session");
+      if (id) localStorage.setItem("mazelan_active_session", id);
+      else localStorage.removeItem("mazelan_active_session");
     } catch {}
   }, []);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -91,7 +91,7 @@ export default function ChatPage() {
 
     // Restore active session on reload
     if (activeId) {
-      const cacheKey = `claudia_msgs_${activeId}`;
+      const cacheKey = `mazelan_msgs_${activeId}`;
       try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) setMessages(JSON.parse(cached));
@@ -177,7 +177,7 @@ export default function ChatPage() {
     setSidebarOpen(false);
 
     // Show cached messages immediately if available
-    const cacheKey = `claudia_msgs_${id}`;
+    const cacheKey = `mazelan_msgs_${id}`;
     let hasCached = false;
     try {
       const cached = localStorage.getItem(cacheKey);
@@ -358,7 +358,7 @@ export default function ChatPage() {
         setMessages(msgs);
         try {
           const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
-          localStorage.setItem(`claudia_msgs_${sessionId}`, JSON.stringify(light));
+          localStorage.setItem(`mazelan_msgs_${sessionId}`, JSON.stringify(light));
         } catch {}
       } else {
         // ── Normal mode ──
@@ -460,7 +460,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v35.5
+          DEV v35.8
         </div>
       )}
 
@@ -476,7 +476,7 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-          <h1 className="text-base font-semibold text-t-primary">claudia</h1>
+          <h1 className="text-base font-semibold text-t-primary">Mazelan</h1>
         </div>
 
         {/* Message list */}
@@ -496,14 +496,34 @@ export default function ChatPage() {
 
             {messages.length === 0 && !streaming && !loadingMessages && status !== "loading" && (
               <div className="flex flex-col items-center justify-center mt-16 md:mt-24 px-4">
-                <h2 className="text-2xl md:text-3xl font-semibold text-t-primary mb-2">claudia</h2>
+                <div className="mb-4">
+                  <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="welcome-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#67E8F9'}}/>
+                        <stop offset="100%" style={{stopColor:'#0369A1'}}/>
+                      </linearGradient>
+                    </defs>
+                    <circle cx="256" cy="256" r="240" fill="url(#welcome-bg)"/>
+                    <g transform="translate(256,256) scale(18)" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M-6,-5 Q-1,-2 0,1" opacity="0.5"/>
+                      <path d="M0,1 Q2,0 6,-3" opacity="0.5"/>
+                      <path d="M0,1 L1,7" opacity="0.5"/>
+                      <circle cx="-6" cy="-5" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                      <circle cx="6" cy="-3" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                      <circle cx="0" cy="1" r="1.3" fill="white" stroke="white" strokeWidth="1" opacity="0.75"/>
+                      <circle cx="1" cy="7" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                    </g>
+                  </svg>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-semibold text-t-primary mb-1">Mazelan</h2>
                 <p className="text-t-tertiary text-sm mb-8">何でも聞いてください</p>
                 <div className="grid grid-cols-2 gap-2 md:gap-3 w-full max-w-md">
                   {[
-                    { icon: "📝", text: "文章を添削して" },
-                    { icon: "💡", text: "アイデアを出して" },
-                    { icon: "🔍", text: "コードをレビューして" },
                     { icon: "✈️", text: "旅行プランを考えて" },
+                    { icon: "🗺️", text: "おすすめの観光地は？" },
+                    { icon: "💡", text: "アイデアを出して" },
+                    { icon: "📝", text: "文章を添削して" },
                   ].map((s) => (
                     <button
                       key={s.text}

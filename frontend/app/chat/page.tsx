@@ -496,14 +496,34 @@ export default function ChatPage() {
 
             {messages.length === 0 && !streaming && !loadingMessages && status !== "loading" && (
               <div className="flex flex-col items-center justify-center mt-16 md:mt-24 px-4">
-                <h2 className="text-2xl md:text-3xl font-semibold text-t-primary mb-2">Mazelan</h2>
+                <div className="mb-4">
+                  <svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <linearGradient id="welcome-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style={{stopColor:'#67E8F9'}}/>
+                        <stop offset="100%" style={{stopColor:'#0369A1'}}/>
+                      </linearGradient>
+                    </defs>
+                    <circle cx="256" cy="256" r="240" fill="url(#welcome-bg)"/>
+                    <g transform="translate(256,256) scale(18)" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M-6,-5 Q-1,-2 0,1" opacity="0.5"/>
+                      <path d="M0,1 Q2,0 6,-3" opacity="0.5"/>
+                      <path d="M0,1 L1,7" opacity="0.5"/>
+                      <circle cx="-6" cy="-5" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                      <circle cx="6" cy="-3" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                      <circle cx="0" cy="1" r="1.3" fill="white" stroke="white" strokeWidth="1" opacity="0.75"/>
+                      <circle cx="1" cy="7" r="2" fill="white" stroke="white" strokeWidth="1.5"/>
+                    </g>
+                  </svg>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-semibold text-t-primary mb-1">Mazelan</h2>
                 <p className="text-t-tertiary text-sm mb-8">何でも聞いてください</p>
                 <div className="grid grid-cols-2 gap-2 md:gap-3 w-full max-w-md">
                   {[
-                    { icon: "📝", text: "文章を添削して" },
-                    { icon: "💡", text: "アイデアを出して" },
-                    { icon: "🔍", text: "コードをレビューして" },
                     { icon: "✈️", text: "旅行プランを考えて" },
+                    { icon: "🗺️", text: "おすすめの観光地は？" },
+                    { icon: "💡", text: "アイデアを出して" },
+                    { icon: "📝", text: "文章を添削して" },
                   ].map((s) => (
                     <button
                       key={s.text}

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/home/yutookiguchi/claudia"
-DOMAIN="claudia.soushu.biz"
+APP_DIR="/home/${DEPLOY_USER:-your-username}/claudia"
+DOMAIN="${DEPLOY_DOMAIN:-your-domain.example.com}"
 
 echo "=== Claudia Deploy Setup ==="
 
@@ -97,7 +97,7 @@ echo ">>> Setting up SSL with certbot..."
 echo "Make sure DNS for ${DOMAIN} points to this server's IP before running certbot."
 read -rp "Run certbot now? [y/N] " yn
 if [[ "$yn" =~ ^[Yy]$ ]]; then
-    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m admin@soushu.biz
+    sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "${CERTBOT_EMAIL:-admin@example.com}"
 fi
 
 echo ""

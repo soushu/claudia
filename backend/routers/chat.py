@@ -11,7 +11,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
@@ -28,13 +28,9 @@ from backend.providers import (
     ProviderError,
 )
 
+from backend.schemas import ImageAttachment, validate_image_count
+
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-
-class ImageAttachment(BaseModel):
-    media_type: str  # image/jpeg, image/png, image/gif, image/webp
-    data: str  # base64-encoded
 
 
 class ChatRequest(BaseModel):
@@ -42,6 +38,11 @@ class ChatRequest(BaseModel):
     images: list[ImageAttachment] = []
     model: str = "claude-sonnet-4-6"
     thinking: bool = False
+
+    @field_validator("images")
+    @classmethod
+    def check_image_count(cls, v: list[ImageAttachment]) -> list[ImageAttachment]:
+        return validate_image_count(v)
 
 
 async def stream_response(session_id: uuid.UUID, content: str, images: list[ImageAttachment] = [], api_key: str | None = None, model: str = "claude-sonnet-4-6", system_prompt: str | None = None, user_id: uuid.UUID | None = None, anthropic_key: str | None = None, thinking: bool = False):

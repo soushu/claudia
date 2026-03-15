@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-DEPLOY_DIR="/home/yutookiguchi/claudia"
+DEPLOY_DIR="/home/${DEPLOY_USER:-your-username}/claudia"
 BRANCH="main"
 
 echo "=== Deploying PRODUCTION (${BRANCH}) ==="

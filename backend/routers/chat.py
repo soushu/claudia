@@ -11,7 +11,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db, SessionLocal
@@ -28,13 +28,9 @@ from backend.providers import (
     ProviderError,
 )
 
+from backend.schemas import ImageAttachment, validate_image_count
+
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-
-
-class ImageAttachment(BaseModel):
-    media_type: str  # image/jpeg, image/png, image/gif, image/webp
-    data: str  # base64-encoded
 
 
 class ChatRequest(BaseModel):
@@ -42,6 +38,11 @@ class ChatRequest(BaseModel):
     images: list[ImageAttachment] = []
     model: str = "claude-sonnet-4-6"
     thinking: bool = False
+
+    @field_validator("images")
+    @classmethod
+    def check_image_count(cls, v: list[ImageAttachment]) -> list[ImageAttachment]:
+        return validate_image_count(v)
 
 
 async def stream_response(session_id: uuid.UUID, content: str, images: list[ImageAttachment] = [], api_key: str | None = None, model: str = "claude-sonnet-4-6", system_prompt: str | None = None, user_id: uuid.UUID | None = None, anthropic_key: str | None = None, thinking: bool = False):
@@ -87,17 +88,38 @@ async def stream_response(session_id: uuid.UUID, content: str, images: list[Imag
             yield "\n\n⚠️ APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。"
             return
 
-        async for text in stream_provider(model, messages, api_key, system_prompt, thinking=thinking):
-            full_response += text
-            yield text
+        usage_info = None
+        async for chunk in stream_provider(model, messages, api_key, system_prompt, thinking=thinking):
+            if isinstance(chunk, dict):
+                usage_info = chunk
+            else:
+                full_response += chunk
+                yield chunk
 
-        assistant_msg = Message(session_id=session_id, role="assistant", content=full_response, model=model)
+        # Calculate cost
+        cost = None
+        if usage_info:
+            from backend.providers import calculate_cost
+            cost = calculate_cost(model, usage_info.get("input_tokens", 0), usage_info.get("output_tokens", 0))
+
+        assistant_msg = Message(
+            session_id=session_id, role="assistant", content=full_response, model=model,
+            input_tokens=usage_info.get("input_tokens") if usage_info else None,
+            output_tokens=usage_info.get("output_tokens") if usage_info else None,
+            cost=cost,
+        )
         db.add(assistant_msg)
         # Update session's updated_at
         chat_session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
         if chat_session:
             chat_session.updated_at = datetime.now(timezone.utc)
         db.commit()
+
+        # Yield usage metadata marker
+        if usage_info:
+            import json
+            meta = {"input_tokens": usage_info["input_tokens"], "output_tokens": usage_info["output_tokens"], "cost": round(cost, 6) if cost else 0}
+            yield f"\n<!--USAGE:{json.dumps(meta)}-->"
 
         # Fire-and-forget context extraction (always uses Anthropic key)
         extraction_key = anthropic_key or (api_key if get_provider(model) == "anthropic" else None)

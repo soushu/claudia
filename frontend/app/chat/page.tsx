@@ -460,7 +460,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v35.4
+          DEV v35.5
         </div>
       )}
 
@@ -578,7 +578,9 @@ export default function ChatPage() {
             )}
 
             {/* Dynamic spacer: CSS provides initial height, JS shrinks it as response grows */}
-            <div ref={spacerRef} className="h-[70dvh]" />
+            {(pairs.length > 0 || streaming) && (
+              <div ref={spacerRef} className="h-[70dvh]" />
+            )}
           </div>
         </div>
 

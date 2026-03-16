@@ -11,7 +11,7 @@ type Props = {
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-const DEFAULT_MODEL: ModelId = "claude-sonnet-4-6";
+const DEFAULT_MODEL: ModelId = "gemini-2.5-flash";
 const DEFAULT_MODEL2: ModelId = "gpt-4o";
 
 function getSessionModel(sessionId: string | null): { model: ModelId; model2: ModelId } {

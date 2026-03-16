@@ -325,7 +325,7 @@ export default function ChatPage() {
           ? getApiKeyForProvider("anthropic") : null;
 
         const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", google: "Google" };
-        if (!apiKeyA) {
+        if (!apiKeyA && providerA !== "google") {
           setMessages((prev) => [
             ...prev,
             { role: "assistant", content: `${providerNames[providerA]} APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。`, created_at: new Date().toISOString() },
@@ -336,7 +336,7 @@ export default function ChatPage() {
           setApiKeyModalOpen(true);
           return;
         }
-        if (!apiKeyB) {
+        if (!apiKeyB && providerB !== "google") {
           setMessages((prev) => [
             ...prev,
             { role: "assistant", content: `${providerNames[providerB]} APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。`, created_at: new Date().toISOString() },
@@ -376,7 +376,7 @@ export default function ChatPage() {
         const provider = getProviderForModel(model);
         const apiKey = getApiKeyForProvider(provider);
         const anthropicKey = provider !== "anthropic" ? getApiKeyForProvider("anthropic") : null;
-        if (!apiKey) {
+        if (!apiKey && provider !== "google") {
           const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", google: "Google" };
           setMessages((prev) => [
             ...prev,

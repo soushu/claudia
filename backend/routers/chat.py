@@ -23,6 +23,7 @@ from backend.providers import (
     ALLOWED_MODELS,
     get_provider,
     stream_provider,
+    gemini_free_pool,
     ProviderAuthError,
     ProviderRateLimitError,
     ProviderSpendLimitError,
@@ -173,10 +174,14 @@ async def chat(
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    if not x_api_key:
-        raise HTTPException(status_code=400, detail="APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。")
-
     model = req.model if req.model in ALLOWED_MODELS else "claude-sonnet-4-6"
+
+    # For Google models, allow access without user API key if free pool is available
+    if not x_api_key:
+        if get_provider(model) == "google" and gemini_free_pool.available:
+            pass  # Will use free pool keys
+        else:
+            raise HTTPException(status_code=400, detail="APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。")
 
     # For Google models, attach fallback key for auto-switching on quota errors
     google_fallback = x_google_fallback_key if get_provider(model) == "google" else None

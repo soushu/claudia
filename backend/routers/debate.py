@@ -299,19 +299,17 @@ async def debate(
     if session.user_id != current_user_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    model_a = req.model_a if req.model_a in ALLOWED_MODELS else "claude-sonnet-4-6"
+    model_b = req.model_b if req.model_b in ALLOWED_MODELS else "gpt-4o"
+
     # Allow missing keys for Google models if free pool is available
-    model_a_candidate = req.model_a if req.model_a in ALLOWED_MODELS else "claude-sonnet-4-6"
-    model_b_candidate = req.model_b if req.model_b in ALLOWED_MODELS else "gpt-4o"
-    key_a_ok = x_api_key_a or (get_provider(model_a_candidate) == "google" and gemini_free_pool.available)
-    key_b_ok = x_api_key_b or (get_provider(model_b_candidate) == "google" and gemini_free_pool.available)
+    key_a_ok = x_api_key_a or (get_provider(model_a) == "google" and gemini_free_pool.available)
+    key_b_ok = x_api_key_b or (get_provider(model_b) == "google" and gemini_free_pool.available)
     if not key_a_ok or not key_b_ok:
         raise HTTPException(
             status_code=400,
             detail="議論モードには両方のモデルのAPIキーが必要です。サイドバーの「API Key 設定」からキーを設定してください。",
         )
-
-    model_a = req.model_a if req.model_a in ALLOWED_MODELS else "claude-sonnet-4-6"
-    model_b = req.model_b if req.model_b in ALLOWED_MODELS else "gpt-4o"
 
     # Resolve system prompt
     user_prompt = session.system_prompt

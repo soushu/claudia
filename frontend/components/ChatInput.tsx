@@ -175,9 +175,29 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
   }, []);
 
   const modeLabel = thinking && supportsThinking ? t("input.thinkingMode") : t("input.fastMode");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Push input area above mobile keyboard/predictive bar using visualViewport
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function handleResize() {
+      const el = containerRef.current;
+      if (!el || !vv) return;
+      const offsetBottom = window.innerHeight - vv.height - vv.offsetTop;
+      el.style.paddingBottom = offsetBottom > 0 ? `${offsetBottom}px` : "0px";
+    }
+    vv.addEventListener("resize", handleResize);
+    vv.addEventListener("scroll", handleResize);
+    return () => {
+      vv.removeEventListener("resize", handleResize);
+      vv.removeEventListener("scroll", handleResize);
+    };
+  }, []);
 
   return (
     <div
+      ref={containerRef}
       className={`p-2 md:p-4 border-t transition-colors ${
         dragging ? "border-blue-500 bg-blue-500/10" : "border-border-primary"
       }`}

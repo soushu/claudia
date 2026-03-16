@@ -28,7 +28,7 @@ type Props = {
   onSubmit: (content: string, images: File[], model: ModelId, debateMode?: boolean, secondModel?: ModelId, thinking?: boolean) => void;
   disabled: boolean;
   sessionId: string | null;
-  onOpenApiKeyModal?: () => void;
+  onOpenApiKeyModal?: (provider?: string) => void;
 };
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -332,8 +332,9 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
               const v = e.target.value as ModelId;
               const group = MODEL_GROUPS.find((g) => g.models.some((m) => m.id === v));
               if (group && isModelLocked(v, group.provider)) {
-                onOpenApiKeyModal?.();
-                e.target.value = selectedModel; // revert
+                onOpenApiKeyModal?.(group.provider);
+                setSelectedModel(v);
+                saveSessionModel(sessionId, v, secondModel);
                 return;
               }
               setSelectedModel(v);
@@ -375,8 +376,9 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
                   const v = e.target.value as ModelId;
                   const group = MODEL_GROUPS.find((g) => g.models.some((m) => m.id === v));
                   if (group && isModelLocked(v, group.provider)) {
-                    onOpenApiKeyModal?.();
-                    e.target.value = secondModel;
+                    onOpenApiKeyModal?.(group.provider);
+                    setSecondModel(v);
+                    saveSessionModel(sessionId, selectedModel, v);
                     return;
                   }
                   setSecondModel(v);

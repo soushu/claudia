@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 type Props = {
   open: boolean;
   onClose: () => void;
+  initialTab?: string;
 };
 
 const TABS: { provider: Provider; label: string; placeholder: string }[] = [
@@ -21,7 +22,7 @@ const TABS: { provider: Provider; label: string; placeholder: string }[] = [
   { provider: "google", label: "Google", placeholder: "AIza..." },
 ];
 
-export default function ApiKeyModal({ open, onClose }: Props) {
+export default function ApiKeyModal({ open, onClose, initialTab }: Props) {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState<Provider>("anthropic");
   const [keys, setKeys] = useState<Record<Provider, string>>({ anthropic: "", openai: "", google: "" });
@@ -42,8 +43,11 @@ export default function ApiKeyModal({ open, onClose }: Props) {
       setSaved(newSaved);
       setShowKey(false);
       setError("");
+      if (initialTab && TABS.some((t) => t.provider === initialTab)) {
+        setActiveTab(initialTab as Provider);
+      }
     }
-  }, [open]);
+  }, [open, initialTab]);
 
   function handleSave() {
     const trimmed = keys[activeTab].trim();

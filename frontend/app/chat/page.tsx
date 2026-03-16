@@ -67,6 +67,7 @@ export default function ChatPage() {
   const [streamingModel, setStreamingModel] = useState<string | undefined>(undefined);
   const [manualToggles, setManualToggles] = useState<Set<number>>(new Set());
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
+  const [apiKeyModalTab, setApiKeyModalTab] = useState<string | undefined>(undefined);
   const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
   const [contextModalOpen, setContextModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -464,7 +465,7 @@ export default function ChatPage() {
         onClose={() => setSidebarOpen(false)}
         loading={loadingSessions}
       />
-      <ApiKeyModal open={apiKeyModalOpen} onClose={() => setApiKeyModalOpen(false)} />
+      <ApiKeyModal open={apiKeyModalOpen} onClose={() => { setApiKeyModalOpen(false); setApiKeyModalTab(undefined); }} initialTab={apiKeyModalTab} />
       <SystemPromptModal open={systemPromptModalOpen} onClose={() => setSystemPromptModalOpen(false)} activeSessionId={activeId} />
       <ContextModal open={contextModalOpen} onClose={() => setContextModalOpen(false)} />
 
@@ -615,7 +616,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <ChatInput onSubmit={handleSubmit} disabled={streaming || status === "loading"} sessionId={activeId} onOpenApiKeyModal={() => setApiKeyModalOpen(true)} />
+        <ChatInput onSubmit={handleSubmit} disabled={streaming || status === "loading"} sessionId={activeId} onOpenApiKeyModal={(provider) => { setApiKeyModalTab(provider); setApiKeyModalOpen(true); }} />
       </div>
     </div>
   );

@@ -353,13 +353,24 @@ export default function ChatPage() {
           setStreamingText(full);
         }
 
-        // Reload messages from DB to get the <!--DEBATE:--> format saved by backend
-        const msgs = await getMessages(sessionId);
-        setMessages(msgs);
-        try {
-          const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
-          localStorage.setItem(`mazelan_msgs_${sessionId}`, JSON.stringify(light));
-        } catch {}
+        // If the stream ended with an error marker, extract just the error message
+        // (errors cause db.rollback() so the message won't be in DB)
+        if (full.includes("⚠️")) {
+          const errorMatch = full.match(/⚠️[^\n]*/);
+          const errorMsg = errorMatch ? errorMatch[0] : "⚠️ エラーが発生しました。";
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: errorMsg, created_at: new Date().toISOString(), model },
+          ]);
+        } else {
+          // Reload messages from DB to get the <!--DEBATE:--> format saved by backend
+          const msgs = await getMessages(sessionId);
+          setMessages(msgs);
+          try {
+            const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
+            localStorage.setItem(`mazelan_msgs_${sessionId}`, JSON.stringify(light));
+          } catch {}
+        }
       } else {
         // ── Normal mode ──
         const provider = getProviderForModel(model);
@@ -460,7 +471,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v35.8
+          DEV v36.0
         </div>
       )}
 

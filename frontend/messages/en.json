@@ -82,7 +82,56 @@
     "debateMode": "Debate mode",
     "starting": "Starting debate...",
     "more": "...more",
-    "showLess": "show less"
+    "showLess": "show less",
+    "answer": "'s answer",
+    "critique": "'s critique",
+    "finalAnswer": "Final answer",
+    "thinking": "Thinking...",
+    "generating": "(generating)",
+    "completedSteps": "Completed steps ({count})",
+    "viewProcess": "View debate process ({count})",
+    "step": "Step {current}/{total}: {label}"
+  },
+  "systemPrompt": {
+    "title": "System Prompt",
+    "description": "Set instructions that the AI will follow. This affects the tone and behavior of all responses.",
+    "global": "Global",
+    "session": "Session",
+    "globalPlaceholder": "e.g. Always respond in formal Japanese...",
+    "sessionPlaceholder": "e.g. You are a travel planning expert...",
+    "selectSession": "Please select a conversation.",
+    "chars": "chars",
+    "saved": "Saved!",
+    "save": "Save",
+    "clear": "Clear",
+    "close": "Close"
+  },
+  "context": {
+    "title": "Context Memory",
+    "items": "items",
+    "description": "Facts the AI remembers about you. These are automatically extracted from conversations, and you can also add or edit them manually.",
+    "searchPlaceholder": "Add new context...",
+    "add": "Add",
+    "emptyMessage": "Nothing registered yet. Add from the form above, or continue chatting and the AI will learn automatically.",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "categories": {
+      "preferences": "Preferences",
+      "skills": "Skills",
+      "projects": "Projects",
+      "personal": "Personal",
+      "general": "General"
+    }
+  },
+  "usage": {
+    "title": "Token usage",
+    "input": "Input",
+    "output": "Output",
+    "total": "Total",
+    "cost": "Cost"
   },
   "copy": {
     "copied": "Copied!",

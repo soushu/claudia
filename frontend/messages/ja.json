@@ -82,7 +82,56 @@
     "debateMode": "議論モード",
     "starting": "議論を開始中...",
     "more": "...もっと見る",
-    "showLess": "閉じる"
+    "showLess": "閉じる",
+    "answer": "の回答",
+    "critique": "の批評",
+    "finalAnswer": "統合回答",
+    "thinking": "考え中...",
+    "generating": "（生成中）",
+    "completedSteps": "完了したステップ（{count}件）",
+    "viewProcess": "議論の過程を見る（{count}件）",
+    "step": "ステップ {current}/{total}: {label}"
+  },
+  "systemPrompt": {
+    "title": "システムプロンプト",
+    "description": "AIが従う指示を設定します。すべての応答のトーンや振る舞いに影響します。",
+    "global": "グローバル",
+    "session": "セッション",
+    "globalPlaceholder": "例: 必ず敬語で回答してください...",
+    "sessionPlaceholder": "例: あなたは旅行プランニングの専門家です...",
+    "selectSession": "会話を選択してください。",
+    "chars": "文字",
+    "saved": "保存しました！",
+    "save": "保存",
+    "clear": "クリア",
+    "close": "閉じる"
+  },
+  "context": {
+    "title": "コンテキストメモリ",
+    "items": "件",
+    "description": "AIがあなたについて記憶している情報です。会話から自動的に抽出されますが、手動で追加・編集もできます。",
+    "searchPlaceholder": "新しいコンテキストを追加...",
+    "add": "追加",
+    "emptyMessage": "まだ何も登録されていません。上のフォームから追加するか、会話を続けるとAIが自動的に学習します。",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "delete": "削除",
+    "close": "閉じる",
+    "categories": {
+      "preferences": "好み・設定",
+      "skills": "スキル・専門",
+      "projects": "プロジェクト",
+      "personal": "個人情報",
+      "general": "その他"
+    }
+  },
+  "usage": {
+    "title": "トークン使用量",
+    "input": "入力",
+    "output": "出力",
+    "total": "合計",
+    "cost": "コスト"
   },
   "copy": {
     "copied": "コピーしました！",

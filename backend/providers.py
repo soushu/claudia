@@ -244,6 +244,20 @@ def _convert_messages_for_openai(
     return oai_messages
 
 
+def _openai_tools() -> list[dict] | None:
+    """Return OpenAI-format tool definitions if Amazon search is available."""
+    if not amazon_available():
+        return None
+    return [{
+        "type": "function",
+        "function": {
+            "name": AMAZON_SEARCH_TOOL["name"],
+            "description": AMAZON_SEARCH_TOOL["description"],
+            "parameters": AMAZON_SEARCH_TOOL["input_schema"],
+        },
+    }]
+
+
 async def stream_openai(
     model: str,
     messages: list[dict],
@@ -255,23 +269,85 @@ async def stream_openai(
 
     # o-series models (o1, o3, etc.) require max_completion_tokens instead of max_tokens
     token_param = "max_completion_tokens" if model.startswith("o") else "max_tokens"
+    tools = _openai_tools()
+    max_tool_rounds = 3
+    total_input = 0
+    total_output = 0
+
     try:
-        stream = await client.chat.completions.create(
-            model=model,
-            messages=oai_messages,
-            stream=True,
-            stream_options={"include_usage": True},
-            **{token_param: 4096},
-        )
-        usage_data = None
-        async for chunk in stream:
-            if chunk.usage:
-                usage_data = {"input_tokens": chunk.usage.prompt_tokens, "output_tokens": chunk.usage.completion_tokens}
-            delta = chunk.choices[0].delta if chunk.choices else None
-            if delta and delta.content:
-                yield delta.content
-        if usage_data:
-            yield usage_data
+        for _round in range(max_tool_rounds + 1):
+            create_kwargs: dict = dict(
+                model=model,
+                messages=oai_messages,
+                stream=True,
+                stream_options={"include_usage": True},
+                **{token_param: 4096},
+            )
+            if tools:
+                create_kwargs["tools"] = tools
+
+            stream = await client.chat.completions.create(**create_kwargs)
+
+            usage_data = None
+            tool_calls_acc: dict[int, dict] = {}  # index -> {id, name, arguments}
+            finish_reason = None
+
+            async for chunk in stream:
+                if chunk.usage:
+                    usage_data = {"input_tokens": chunk.usage.prompt_tokens, "output_tokens": chunk.usage.completion_tokens}
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if chunk.choices:
+                    finish_reason = chunk.choices[0].finish_reason or finish_reason
+
+                if delta and delta.content:
+                    yield delta.content
+
+                # Accumulate tool call chunks
+                if delta and delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {"id": tc.id or "", "name": "", "arguments": ""}
+                        if tc.id:
+                            tool_calls_acc[idx]["id"] = tc.id
+                        if tc.function and tc.function.name:
+                            tool_calls_acc[idx]["name"] = tc.function.name
+                        if tc.function and tc.function.arguments:
+                            tool_calls_acc[idx]["arguments"] += tc.function.arguments
+
+            if usage_data:
+                total_input += usage_data["input_tokens"]
+                total_output += usage_data["output_tokens"]
+
+            # Check if model wants to call tools
+            if finish_reason != "tool_calls" or not tool_calls_acc:
+                break
+
+            # Build assistant message with tool_calls
+            assistant_tool_calls = []
+            for idx in sorted(tool_calls_acc.keys()):
+                tc = tool_calls_acc[idx]
+                assistant_tool_calls.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {"name": tc["name"], "arguments": tc["arguments"]},
+                })
+            oai_messages.append({"role": "assistant", "tool_calls": assistant_tool_calls, "content": None})
+
+            # Execute tools and add results
+            for tc in assistant_tool_calls:
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    args = {}
+                result = await _execute_tool(tc["function"]["name"], args)
+                oai_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result,
+                })
+
+        yield {"input_tokens": total_input, "output_tokens": total_output}
     except OpenAIAuthError:
         raise ProviderAuthError("OpenAI API key is invalid")
     except OpenAIRateLimitError as e:
@@ -329,45 +405,100 @@ def _is_gemini_rate_limit(err_str: str) -> bool:
     return "429" in err_str or "resource_exhausted" in err_str or "rate limit" in err_str
 
 
+def _gemini_tools() -> list[genai_types.Tool] | None:
+    """Return Gemini-format tool definitions if Amazon search is available."""
+    if not amazon_available():
+        return None
+    return [genai_types.Tool(function_declarations=[
+        genai_types.FunctionDeclaration(
+            name=AMAZON_SEARCH_TOOL["name"],
+            description=AMAZON_SEARCH_TOOL["description"],
+            parameters=AMAZON_SEARCH_TOOL["input_schema"],
+        ),
+    ])]
+
+
 async def _stream_google_with_key(
     model: str, gemini_contents: list, config: genai_types.GenerateContentConfig, api_key: str,
 ) -> AsyncGenerator[str | dict, None]:
     """Attempt streaming with a single key, with exponential backoff for transient 429s."""
     client = genai.Client(api_key=api_key)
     max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            stream = await client.aio.models.generate_content_stream(
-                model=model, contents=gemini_contents, config=config,
-            )
-            usage_data = None
-            async for chunk in stream:
-                if chunk.text:
-                    yield chunk.text
-                if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
-                    um = chunk.usage_metadata
-                    usage_data = {
-                        "input_tokens": getattr(um, "prompt_token_count", 0) or 0,
-                        "output_tokens": getattr(um, "candidates_token_count", 0) or 0,
-                    }
-            if usage_data:
-                yield usage_data
-            return
-        except Exception as e:
-            err_str = str(e).lower()
-            logger.warning("Gemini error (attempt %d/%d, model=%s): %s", attempt + 1, max_retries, model, e)
-            if "api key" in err_str or "permission" in err_str or "401" in err_str or "403" in err_str:
-                raise ProviderAuthError("Google API key is invalid")
-            if _is_gemini_exhausted_error(err_str):
-                raise ProviderSpendLimitError(str(e))
-            if _is_gemini_rate_limit(err_str) and attempt < max_retries - 1:
-                wait = 2 ** attempt
-                logger.warning("Gemini 429, retry %d/%d after %ds", attempt + 1, max_retries, wait)
-                await asyncio.sleep(wait)
-                continue
-            if _is_gemini_rate_limit(err_str):
-                raise ProviderRateLimitError(str(e))
-            raise ProviderError(f"Gemini error: {e}")
+    max_tool_rounds = 3
+    contents = list(gemini_contents)  # copy to avoid mutating caller's list
+    total_input = 0
+    total_output = 0
+
+    for _round in range(max_tool_rounds + 1):
+        for attempt in range(max_retries):
+            try:
+                stream = await client.aio.models.generate_content_stream(
+                    model=model, contents=contents, config=config,
+                )
+                usage_data = None
+                function_calls = []
+                async for chunk in stream:
+                    if chunk.text:
+                        yield chunk.text
+                    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                        um = chunk.usage_metadata
+                        usage_data = {
+                            "input_tokens": getattr(um, "prompt_token_count", 0) or 0,
+                            "output_tokens": getattr(um, "candidates_token_count", 0) or 0,
+                        }
+                    # Detect function calls
+                    if chunk.candidates:
+                        for candidate in chunk.candidates:
+                            if candidate.content and candidate.content.parts:
+                                for part in candidate.content.parts:
+                                    if hasattr(part, "function_call") and part.function_call and part.function_call.name:
+                                        function_calls.append(part.function_call)
+
+                if usage_data:
+                    total_input += usage_data["input_tokens"]
+                    total_output += usage_data["output_tokens"]
+
+                # If no function calls, we're done
+                if not function_calls:
+                    yield {"input_tokens": total_input, "output_tokens": total_output}
+                    return
+
+                # Execute function calls and build responses
+                # Add model's response (with function_call parts) to contents
+                fc_parts = [genai_types.Part.from_function_call(name=fc.name, args=dict(fc.args) if fc.args else {}) for fc in function_calls]
+                contents.append(genai_types.Content(role="model", parts=fc_parts))
+
+                # Execute and add function responses
+                fr_parts = []
+                for fc in function_calls:
+                    args = dict(fc.args) if fc.args else {}
+                    result_str = await _execute_tool(fc.name, args)
+                    result_data = json.loads(result_str)
+                    fr_parts.append(genai_types.Part.from_function_response(
+                        name=fc.name,
+                        response={"result": result_data},
+                    ))
+                contents.append(genai_types.Content(role="user", parts=fr_parts))
+                break  # Success for this round, proceed to next tool round
+
+            except Exception as e:
+                err_str = str(e).lower()
+                logger.warning("Gemini error (attempt %d/%d, model=%s): %s", attempt + 1, max_retries, model, e)
+                if "api key" in err_str or "permission" in err_str or "401" in err_str or "403" in err_str:
+                    raise ProviderAuthError("Google API key is invalid")
+                if _is_gemini_exhausted_error(err_str):
+                    raise ProviderSpendLimitError(str(e))
+                if _is_gemini_rate_limit(err_str) and attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    logger.warning("Gemini 429, retry %d/%d after %ds", attempt + 1, max_retries, wait)
+                    await asyncio.sleep(wait)
+                    continue
+                if _is_gemini_rate_limit(err_str):
+                    raise ProviderRateLimitError(str(e))
+                raise ProviderError(f"Gemini error: {e}")
+
+    # Exhausted tool rounds
+    yield {"input_tokens": total_input, "output_tokens": total_output}
 
 
 async def stream_google(
@@ -387,6 +518,9 @@ async def stream_google(
         config.thinking_config = genai_types.ThinkingConfig(thinking_budget=10000)
     if system_prompt:
         config.system_instruction = system_prompt
+    gemini_tool_defs = _gemini_tools()
+    if gemini_tool_defs:
+        config.tools = gemini_tool_defs
 
     # Build key chain: user key (if provided) → free pool keys → fallback (paid) key
     keys_to_try: list[tuple[str, str]] = []  # (key, label)

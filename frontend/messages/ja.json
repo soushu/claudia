@@ -131,7 +131,9 @@
     "input": "入力",
     "output": "出力",
     "total": "合計",
-    "cost": "コスト"
+    "cost": "コスト",
+    "model": "モデル",
+    "free": "{cost} (Free)"
   },
   "copy": {
     "copied": "コピーしました！",

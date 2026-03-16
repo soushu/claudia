@@ -2,13 +2,23 @@
 
 import { useState } from "react";
 import type { UsageInfo } from "@/lib/types";
-import { formatCost } from "@/lib/types";
+import { formatCost, getModelLabel, getProviderFromModelId } from "@/lib/types";
+import { getApiKeyForProvider } from "@/lib/apiKeyStore";
 import { useTranslations } from "next-intl";
 
-export default function TokenUsageTooltip({ usage }: { usage: UsageInfo }) {
+type Props = {
+  usage: UsageInfo;
+  modelId?: string;
+};
+
+export default function TokenUsageTooltip({ usage, modelId }: Props) {
   const t = useTranslations();
   const [show, setShow] = useState(false);
   const total = usage.input_tokens + usage.output_tokens;
+
+  // Determine if this was a free request (Google model without user API key)
+  const provider = modelId ? getProviderFromModelId(modelId) : null;
+  const isFree = provider === "google" && !getApiKeyForProvider("google");
 
   return (
     <div className="relative inline-block">
@@ -26,6 +36,12 @@ export default function TokenUsageTooltip({ usage }: { usage: UsageInfo }) {
       {show && (
         <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs whitespace-nowrap z-50">
           <div className="text-t-secondary space-y-1">
+            {modelId && (
+              <div className="flex justify-between gap-4 pb-1 mb-1 border-b border-border-primary">
+                <span className="text-t-muted">{t("usage.model")}</span>
+                <span className="font-medium">{getModelLabel(modelId)}</span>
+              </div>
+            )}
             <div className="flex justify-between gap-4">
               <span className="text-t-muted">{t("usage.input")}</span>
               <span>{usage.input_tokens.toLocaleString()} tokens</span>
@@ -40,7 +56,13 @@ export default function TokenUsageTooltip({ usage }: { usage: UsageInfo }) {
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-t-muted">{t("usage.cost")}</span>
-              <span className="font-medium">{formatCost(usage.cost)}</span>
+              <span className="font-medium">
+                {isFree ? (
+                  <>{t("usage.free", { cost: "$0.00" })}</>
+                ) : (
+                  formatCost(usage.cost)
+                )}
+              </span>
             </div>
           </div>
         </div>

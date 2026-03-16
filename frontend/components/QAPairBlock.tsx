@@ -172,7 +172,7 @@ export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, 
                 </div>
                 <div className="flex justify-end mt-1 gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                   {pair.assistant.input_tokens != null && pair.assistant.cost != null && (
-                    <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} />
+                    <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} modelId={pair.assistant.model} />
                   )}
                   <MessageCopyButton text={debateData.steps.find(s => s.id === "final")?.content || pair.assistant.content} />
                 </div>
@@ -191,7 +191,7 @@ export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, 
                 </div>
                 <div className="flex justify-end mt-1 gap-1 opacity-0 group-hover/msg:opacity-100 transition-opacity">
                   {pair.assistant.input_tokens != null && pair.assistant.cost != null && (
-                    <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} />
+                    <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} modelId={pair.assistant.model} />
                   )}
                   <MessageCopyButton text={pair.assistant.content} />
                 </div>

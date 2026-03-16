@@ -131,7 +131,9 @@
     "input": "Input",
     "output": "Output",
     "total": "Total",
-    "cost": "Cost"
+    "cost": "Cost",
+    "model": "Model",
+    "free": "{cost} (Free)"
   },
   "copy": {
     "copied": "Copied!",

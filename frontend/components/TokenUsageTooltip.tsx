@@ -43,17 +43,17 @@ export default function TokenUsageTooltip({ usage, modelId }: Props) {
         </svg>
       </button>
       {show && (
-        <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs z-50 min-w-[200px] max-w-[calc(100vw-2rem)]">
+        <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs z-50 min-w-[260px] max-w-[calc(100vw-2rem)]">
           <div className="text-t-secondary space-y-1">
             {debateModels ? (
               <div className="pb-1 mb-1 border-b border-border-primary space-y-1">
                 <div className="flex justify-between gap-4">
-                  <span className="text-t-muted">Model A</span>
-                  <span className="font-medium">{getModelLabel(debateModels.modelA)}</span>
+                  <span className="text-t-muted whitespace-nowrap">Model A</span>
+                  <span className="font-medium whitespace-nowrap">{getModelLabel(debateModels.modelA)}</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-t-muted">Model B</span>
-                  <span className="font-medium">{getModelLabel(debateModels.modelB)}</span>
+                  <span className="text-t-muted whitespace-nowrap">Model B</span>
+                  <span className="font-medium whitespace-nowrap">{getModelLabel(debateModels.modelB)}</span>
                 </div>
               </div>
             ) : modelId ? (

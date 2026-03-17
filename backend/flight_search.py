@@ -408,10 +408,24 @@ async def search_flights(
                     "currency": "JPY",
                 })
 
-    # Sort by score (balance price, duration, stops) — like Google Flights "Best"
-    all_flights.sort(key=lambda f: f.get("_score") or _flight_score(f.get("price") or f.get("first_leg_price"), f.get("duration_min"), f.get("stops", 0)))
-
     if not all_flights:
         return [{"error": f"No flights found for {origin} → {destination} on {departure_date}. Try alternative dates or nearby airports."}]
 
-    return all_flights
+    # Sort by score (balance price, duration, stops) — like Google Flights "Best"
+    score_key = lambda f: f.get("_score") or _flight_score(f.get("price") or f.get("first_leg_price"), f.get("duration_min"), f.get("stops", 0))
+    all_flights.sort(key=score_key)
+    best_flights = all_flights[:max_results]
+
+    # Find cheapest by price only (may have long layover)
+    price_key = lambda f: f.get("price") or f.get("first_leg_price") or 999999
+    cheapest = min(all_flights, key=price_key)
+
+    # Add cheapest if not already in best_flights
+    cheapest_ids = {(f.get("airline"), f.get("price"), f.get("departure")) for f in best_flights}
+    cheapest_id = (cheapest.get("airline"), cheapest.get("price"), cheapest.get("departure"))
+    if cheapest_id not in cheapest_ids:
+        cheapest_copy = dict(cheapest)
+        cheapest_copy["_cheapest"] = True
+        best_flights.append(cheapest_copy)
+
+    return best_flights

@@ -125,12 +125,14 @@ async def _search_google_flights(
                 price = f.get("price")
                 duration = f.get("total_duration", 0)
 
-                # Build Google Flights search link
+                # Build Google Flights search link (via Google Search flights widget)
                 dep_airport = first_leg.get("departure_airport", {}).get("id", origin.upper())
                 arr_airport = last_leg.get("arrival_airport", {}).get("id", destination.upper())
-                gf_link = f"https://www.google.com/travel/flights?q=flights+from+{dep_airport}+to+{arr_airport}+on+{departure_date}"
+                dep_date_fmt = departure_date  # YYYY-MM-DD
                 if return_date:
-                    gf_link += f"+returning+{return_date}"
+                    gf_link = f"https://www.google.com/search?q={dep_airport}+to+{arr_airport}+flights+{dep_date_fmt}+to+{return_date}"
+                else:
+                    gf_link = f"https://www.google.com/search?q={dep_airport}+to+{arr_airport}+flights+{dep_date_fmt}"
 
                 flight_info = {
                     "source": "Google Flights",

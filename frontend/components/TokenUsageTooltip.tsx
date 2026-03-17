@@ -43,7 +43,7 @@ export default function TokenUsageTooltip({ usage, modelId }: Props) {
         </svg>
       </button>
       {show && (
-        <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs whitespace-nowrap z-50">
+        <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs z-50 min-w-[200px] max-w-[calc(100vw-2rem)]">
           <div className="text-t-secondary space-y-1">
             {debateModels ? (
               <div className="pb-1 mb-1 border-b border-border-primary space-y-1">
@@ -63,16 +63,16 @@ export default function TokenUsageTooltip({ usage, modelId }: Props) {
               </div>
             ) : null}
             <div className="flex justify-between gap-4">
-              <span className="text-t-muted">{t("usage.input")}</span>
-              <span>{usage.input_tokens.toLocaleString()} tokens</span>
+              <span className="text-t-muted whitespace-nowrap">{t("usage.input")}</span>
+              <span className="whitespace-nowrap">{usage.input_tokens.toLocaleString()} tokens</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-t-muted">{t("usage.output")}</span>
-              <span>{usage.output_tokens.toLocaleString()} tokens</span>
+              <span className="text-t-muted whitespace-nowrap">{t("usage.output")}</span>
+              <span className="whitespace-nowrap">{usage.output_tokens.toLocaleString()} tokens</span>
             </div>
             <div className="border-t border-border-primary pt-1 mt-1 flex justify-between gap-4">
-              <span className="text-t-muted">{t("usage.total")}</span>
-              <span>{total.toLocaleString()} tokens</span>
+              <span className="text-t-muted whitespace-nowrap">{t("usage.total")}</span>
+              <span className="whitespace-nowrap">{total.toLocaleString()} tokens</span>
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-t-muted">{t("usage.cost")}</span>

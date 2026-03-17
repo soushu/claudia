@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import httpx
 
@@ -215,9 +215,73 @@ async def _search_travelpayouts(
         return []
 
 
+# ── Travelpayouts month matrix (cheapest dates) ──
+
+async def _get_cheapest_dates(origin: str, destination: str, month: str) -> dict[str, int]:
+    """Get daily cheapest prices for a month via Travelpayouts.
+    Returns dict of {date_str: price}.
+    month format: YYYY-MM
+    """
+    if not TRAVELPAYOUTS_TOKEN:
+        return {}
+
+    params = {
+        "origin": origin.upper(),
+        "destination": destination.upper(),
+        "month": month,
+        "currency": "JPY",
+        "token": TRAVELPAYOUTS_TOKEN,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{TRAVELPAYOUTS_BASE}/v2/prices/month-matrix", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+        if not data.get("success"):
+            return {}
+
+        prices = {}
+        for item in data.get("data", []):
+            dep = item.get("depart_date", "")
+            price = item.get("value")
+            if dep and price:
+                prices[dep] = price
+        return prices
+
+    except Exception as e:
+        logger.error("Travelpayouts month-matrix error: %s", e)
+        return {}
+
+
 # ── Hub airports for connection search ──
 
 HUB_AIRPORTS = ["ICN", "TPE", "HKG", "PVG", "HAN", "BKK", "SIN", "KUL"]
+
+
+def _generate_return_dates(departure_date: str, return_date: str | None) -> list[str]:
+    """Generate return date candidates.
+    If return_date is specified, return [return_date].
+    Otherwise, generate 2-week±3 and 3-week±3 candidates.
+    """
+    if return_date:
+        return [return_date]
+
+    try:
+        dep = datetime.strptime(departure_date, "%Y-%m-%d").date()
+    except ValueError:
+        return []
+
+    candidates = set()
+    # 2 weeks ± 3 days (days 11-17)
+    for offset in range(11, 18):
+        candidates.add((dep + timedelta(days=offset)).isoformat())
+    # 3 weeks ± 3 days (days 18-24)
+    for offset in range(18, 25):
+        candidates.add((dep + timedelta(days=offset)).isoformat())
+
+    return sorted(candidates)
 
 
 async def _search_direct(
@@ -252,7 +316,6 @@ def _fix_date(date_str: str) -> str:
         dt = datetime.strptime(date_str, "%Y-%m-%d").date()
         today = date.today()
         if dt < today:
-            # Replace year with current year; if still past, use next year
             fixed = dt.replace(year=today.year)
             if fixed < today:
                 fixed = dt.replace(year=today.year + 1)
@@ -267,8 +330,9 @@ async def search_flights(
     origin: str, destination: str, departure_date: str,
     return_date: str | None = None, adults: int = 1, max_results: int = 5,
 ) -> list[dict]:
-    """Search Google Flights and Travelpayouts, merge and sort by price.
-    If no results found, suggest hub connections as alternatives.
+    """Search Google Flights and Travelpayouts with smart return-date exploration.
+    If return_date is not specified, searches multiple return date candidates
+    (2 weeks ± 3 days and 3 weeks ± 3 days) and picks the best deals.
     """
     if not SERPAPI_KEY and not TRAVELPAYOUTS_TOKEN:
         return [{"error": "No flight search API configured (SERPAPI_KEY or TRAVELPAYOUTS_TOKEN)"}]
@@ -278,11 +342,52 @@ async def search_flights(
     if return_date:
         return_date = _fix_date(return_date)
 
-    all_flights = await _search_direct(origin, destination, departure_date, return_date, adults, max_results)
+    # Generate return date candidates
+    return_candidates = _generate_return_dates(departure_date, return_date)
+
+    if not return_candidates:
+        # No return date and can't generate → search one-way
+        all_flights = await _search_direct(origin, destination, departure_date, None, adults, max_results)
+    elif len(return_candidates) == 1:
+        # Exact return date specified
+        all_flights = await _search_direct(origin, destination, departure_date, return_candidates[0], adults, max_results)
+    else:
+        # Multiple return date candidates — use Travelpayouts month matrix to find cheapest,
+        # then search top 3 return dates on Google Flights
+        dep_month = departure_date[:7]  # YYYY-MM
+        ret_month_set = {d[:7] for d in return_candidates}
+
+        # Get month price data to identify cheapest return dates
+        month_tasks = [_get_cheapest_dates(destination, origin, m) for m in ret_month_set]
+        month_results = await asyncio.gather(*month_tasks, return_exceptions=True)
+        ret_prices: dict[str, int] = {}
+        for r in month_results:
+            if isinstance(r, dict):
+                ret_prices.update(r)
+
+        # Rank return candidates by Travelpayouts price (cheapest first)
+        if ret_prices:
+            scored = [(d, ret_prices.get(d, 999999)) for d in return_candidates]
+            scored.sort(key=lambda x: x[1])
+            best_return_dates = [d for d, _ in scored[:3]]
+        else:
+            # No price data: pick 14d, 17d, 21d as defaults
+            best_return_dates = return_candidates[3:4] + return_candidates[6:7] + return_candidates[10:11]
+            best_return_dates = best_return_dates[:3] or return_candidates[:3]
+
+        # Search Google Flights for the best return dates in parallel
+        search_tasks = []
+        for ret_d in best_return_dates:
+            search_tasks.append(_search_direct(origin, destination, departure_date, ret_d, adults, max_results))
+        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
+
+        all_flights = []
+        for r in search_results:
+            if isinstance(r, list):
+                all_flights.extend(r)
 
     # If no or very few results, try via hub airports
     if len(all_flights) < 2 and SERPAPI_KEY:
-        # Pick hubs that are geographically between origin and destination (exclude origin/dest themselves)
         hubs_to_try = [h for h in HUB_AIRPORTS if h != origin.upper() and h != destination.upper()][:3]
         hub_tasks = []
         for hub in hubs_to_try:

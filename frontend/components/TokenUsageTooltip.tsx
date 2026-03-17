@@ -11,6 +11,13 @@ type Props = {
   modelId?: string;
 };
 
+function parseDebateModelId(modelId: string): { modelA: string; modelB: string } | null {
+  if (!modelId.startsWith("debate:")) return null;
+  const parts = modelId.split(":");
+  if (parts.length >= 3) return { modelA: parts[1], modelB: parts[2] };
+  return null;
+}
+
 export default function TokenUsageTooltip({ usage, modelId }: Props) {
   const t = useTranslations();
   const [show, setShow] = useState(false);
@@ -19,6 +26,8 @@ export default function TokenUsageTooltip({ usage, modelId }: Props) {
   // Determine if this was a free request (Google model without user API key)
   const provider = modelId ? getProviderFromModelId(modelId) : null;
   const isFree = provider === "google" && !getApiKeyForProvider("google");
+
+  const debateModels = modelId ? parseDebateModelId(modelId) : null;
 
   return (
     <div className="relative inline-block">
@@ -36,12 +45,23 @@ export default function TokenUsageTooltip({ usage, modelId }: Props) {
       {show && (
         <div className="absolute bottom-full right-0 mb-2 bg-theme-surface border border-border-primary rounded-lg shadow-lg p-3 text-xs whitespace-nowrap z-50">
           <div className="text-t-secondary space-y-1">
-            {modelId && (
+            {debateModels ? (
+              <div className="pb-1 mb-1 border-b border-border-primary space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span className="text-t-muted">Model A</span>
+                  <span className="font-medium">{getModelLabel(debateModels.modelA)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-t-muted">Model B</span>
+                  <span className="font-medium">{getModelLabel(debateModels.modelB)}</span>
+                </div>
+              </div>
+            ) : modelId ? (
               <div className="flex justify-between gap-4 pb-1 mb-1 border-b border-border-primary">
                 <span className="text-t-muted">{t("usage.model")}</span>
                 <span className="font-medium">{getModelLabel(modelId)}</span>
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between gap-4">
               <span className="text-t-muted">{t("usage.input")}</span>
               <span>{usage.input_tokens.toLocaleString()} tokens</span>

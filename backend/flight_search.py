@@ -149,6 +149,47 @@ def _fix_date(date_str: str) -> str:
         return date_str
 
 
+def _build_google_flights_url(origin: str, dest: str, dep_date: str, ret_date: str | None) -> str:
+    """Build Google Flights direct URL with protobuf-encoded search params."""
+    import base64
+
+    def _varint(n: int) -> bytes:
+        r = bytearray()
+        while n > 0x7f:
+            r.append((n & 0x7f) | 0x80)
+            n >>= 7
+        r.append(n)
+        return bytes(r)
+
+    def _field_varint(num: int, val: int) -> bytes:
+        return _varint((num << 3) | 0) + _varint(val)
+
+    def _field_bytes(num: int, data: bytes) -> bytes:
+        return _varint((num << 3) | 2) + _varint(len(data)) + data
+
+    def _field_str(num: int, s: str) -> bytes:
+        return _field_bytes(num, s.encode())
+
+    def _location(code: str) -> bytes:
+        return _field_varint(1, 1) + _field_str(2, code)
+
+    def _slice(dt: str, orig: str, dst: str) -> bytes:
+        return _field_str(2, dt) + _field_bytes(13, _location(orig)) + _field_bytes(14, _location(dst))
+
+    try:
+        pb = _field_varint(1, 28) + _field_varint(2, 2)
+        pb += _field_bytes(3, _slice(dep_date, origin, dest))
+        if ret_date:
+            pb += _field_bytes(3, _slice(ret_date, dest, origin))
+        pb += _field_varint(8, 1) + _field_varint(9, 1) + _field_varint(14, 1)
+        pb += _field_bytes(16, b'\x08\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01')
+        pb += _field_varint(19, 1)
+        tfs = base64.urlsafe_b64encode(pb).decode().rstrip('=')
+        return f"https://www.google.com/travel/flights/search?tfs={tfs}&hl=ja&curr=JPY"
+    except Exception:
+        return f"https://www.google.com/search?q={origin}+to+{dest}+flights+{dep_date}"
+
+
 def _build_aviasales_link(origin: str, dest: str, dep_date: str, ret_date: str | None) -> str:
     """Build Aviasales search URL."""
     try:
@@ -224,7 +265,7 @@ async def _search_google_flights(
                     "departure_date": departure_date,
                     "return_date": return_date or "",
                     "search_link": _build_aviasales_link(dep_airport, arr_airport, departure_date, return_date),
-                    "google_flights_link": f"https://www.google.com/search?q={dep_airport}+to+{arr_airport}+flights+{departure_date}" + (f"+to+{return_date}" if return_date else ""),
+                    "google_flights_link": _build_google_flights_url(dep_airport, arr_airport, departure_date, return_date),
                     "_score": _flight_score(price, duration, stops),
                 })
 

@@ -22,10 +22,10 @@ def is_available() -> bool:
 AMAZON_SEARCH_TOOL = {
     "name": "amazon_product_search",
     "description": (
-        "Search Amazon.co.jp for products matching a query. "
-        "Returns product titles, prices, ratings, and direct links. "
-        "Use this when the user asks about purchasing products, "
-        "recommends items, or wants product comparisons."
+        "Search Amazon.co.jp for products. "
+        "ONLY use this when the user EXPLICITLY asks to search for products with purchase links "
+        "(e.g. 'Amazonで調べてリンク教えて'). "
+        "Do NOT use for general product recommendations or advice."
     ),
     "input_schema": {
         "type": "object",

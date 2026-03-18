@@ -315,8 +315,8 @@ async def search_flights(
 
     dep_candidates = []
     day_range = departure_day_to - departure_day_from + 1
-    # Pick ~4 evenly spaced dates from the range
-    step = max(1, day_range // 4)
+    # Pick 3 evenly spaced dates from the range
+    step = max(1, day_range // 3)
     for day in range(departure_day_from, min(departure_day_to + 1, 29), step):
         try:
             d = date(year, month, day)
@@ -345,9 +345,9 @@ async def search_flights(
 
     for dep_str in best_dep_dates:
         dep_d = datetime.strptime(dep_str, "%Y-%m-%d").date()
-        # Check 4 return dates: trip_weeks*7 -3, -1, +1, +3 days
+        # Check 3 return dates: trip_weeks*7 -2, 0, +2 days
         ret_candidates = []
-        for offset in [-3, -1, 1, 3]:
+        for offset in [-2, 0, 2]:
             ret_d = dep_d + timedelta(days=trip_days_center + offset)
             ret_candidates.append(ret_d.isoformat())
 

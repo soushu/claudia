@@ -26,10 +26,14 @@ Ranked by balance of price, duration, and stops. Present 3 options with your top
 ### 最安値 (Cheapest)
 The single cheapest flight regardless of duration or layover time. If it has a very long layover (e.g. 20+ hours overnight in a hub city), note that — some travelers prefer this as it allows a free stopover to explore the city.
 
-For all results:
-- Use specific numbers: prices, flight times, airline names, dates
-- Be assertive: "Book this" not "you might consider"
-- If the cheapest flight is also in the TOP3, just note "最安値 is also the best overall"
+For each flight, ALWAYS show ALL of these in this format:
+- **[航空会社名](airline_url)**: 料金 (例: ¥65,583)
+- 出発: 日時, 到着: 日時 (所要時間, ストップ数)
+- 復路: 日付
+- [Google Flightsで確認](google_flights_link) | [価格比較](search_link)
+
+NEVER omit the price. NEVER omit the links. Be assertive: "Book this" not "you might consider".
+If the cheapest flight is also in the TOP3, just note "最安値 is also the best overall".
 
 ## PROHIBITED
 - Asking the user to specify exact dates when you can infer a range

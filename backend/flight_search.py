@@ -318,7 +318,7 @@ async def search_flights(
         results = await _search_google_flights(origin, destination, departure_date, return_date, adults, max_results)
         api_err = _has_api_error(results)
         if api_err:
-            return [{"error": f"フライト検索サービスが一時的に利用できません（{api_err}）。しばらく経ってから再度お試しください。"}]
+            return [{"error": f"flight_search is temporarily unavailable ({api_err}). DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
         if not results:
             return [{"error": f"No flights found for {origin}→{destination} on {departure_date}"}]
         cache_put("flight", cache_params, results)
@@ -362,7 +362,7 @@ async def search_flights(
 
     # Check for API errors (price == -1 signals API failure)
     if dep_prices and all(p == -1 for _, p in dep_prices):
-        return [{"error": "フライト検索サービスが一時的に利用できません。しばらく経ってから再度お試しください。"}]
+        return [{"error": f"flight_search is temporarily unavailable. DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
 
     best_dep_dates = [d for d, p in dep_prices[:2] if p < 999999 and p != -1]
 

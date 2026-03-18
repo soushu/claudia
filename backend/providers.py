@@ -445,21 +445,22 @@ def _is_gemini_rate_limit(err_str: str) -> bool:
     return "429" in err_str or "resource_exhausted" in err_str or "rate limit" in err_str or "503" in err_str or "unavailable" in err_str
 
 
-def _gemini_tools(enable_search: bool = True) -> list[genai_types.Tool] | None:
-    """Return Gemini-format tool definitions for available tools."""
-    tools = []
-    # Google Search Grounding (built-in, no API key needed)
-    if enable_search:
-        tools.append(genai_types.Tool(google_search=genai_types.GoogleSearch()))
-    # Custom function tools
+def _gemini_tools() -> list[genai_types.Tool] | None:
+    """Return Gemini-format tool definitions for available tools.
+
+    NOTE: Gemini API does not allow google_search and function_calling in the same request.
+    If custom tools (flight/amazon) are available, use those; otherwise use Google Search.
+    """
     declarations = []
     if amazon_available():
         declarations.append(genai_types.FunctionDeclaration(name=AMAZON_SEARCH_TOOL["name"], description=AMAZON_SEARCH_TOOL["description"], parameters=AMAZON_SEARCH_TOOL["input_schema"]))
     if flights_available():
         declarations.append(genai_types.FunctionDeclaration(name=FLIGHT_SEARCH_TOOL["name"], description=FLIGHT_SEARCH_TOOL["description"], parameters=FLIGHT_SEARCH_TOOL["input_schema"]))
     if declarations:
-        tools.append(genai_types.Tool(function_declarations=declarations))
-    return tools if tools else None
+        # Custom tools take priority (cannot combine with google_search)
+        return [genai_types.Tool(function_declarations=declarations)]
+    # No custom tools → use Google Search Grounding
+    return [genai_types.Tool(google_search=genai_types.GoogleSearch())]
 
 
 async def _stream_google_with_key(

@@ -106,26 +106,29 @@ When the user asks to search for flights, use the flight_search tool. Key rules:
 - NEVER give up after one failed search. Try at least 3 different parameter combinations.
 
 ### When flight_search is unavailable or returns an error
-If flight_search returns an error or is not available, use web search as fallback with these STRICT rules:
+If flight_search returns an error or is not available, use web search as fallback.
 
-**Format rules (CRITICAL — different from normal flight search results):**
-- Do NOT use the おすすめTOP3 / 最安値 format — that format is ONLY for structured flight_search results
-- Do NOT fabricate specific departure times, arrival times, or exact prices that are not in the web search results
-- For flight booking/comparison links, ONLY use google.com/travel/flights and aviasales.com — NEVER link to airtrip, Skyscanner, eDreams, or any other booking site
-- NEVER generate long/complex URLs — keep all URLs short and simple
-- NEVER show the raw search query to the user
+**You MUST provide useful information — NEVER respond with just "確認できませんでした" and links.**
 
-**What to present:**
-- Route overview: which airlines fly this route (only if confirmed by web search)
-- Approximate price range: "¥20,000〜¥40,000程度" (only if found in web search results)
-- Best time to book or cheapest period (if found)
-- Always end with links for the user to check actual real-time prices:
+Use web search to find and present:
+- Which airlines operate this route (e.g. ベトジェット, ANA, etc.)
+- Approximate price range found on the web (e.g. "片道¥15,000〜¥50,000程度")
+- Price trends or tips (e.g. "直行便はベトジェットのみ、乗り継ぎはANA/中国東方航空など")
+- Best booking timing if mentioned in search results
 
-  最新の価格はこちらで確認できます:
+**Rules:**
+- Do NOT use the おすすめTOP3 / 最安値 format (that is for flight_search results only)
+- Prices from web search are approximate — note "Web検索による参考価格" to be transparent
+- For booking links, ONLY use google.com/travel/flights and aviasales.com (never airtrip, Skyscanner, eDreams)
+- Keep URLs short and simple — never generate long/complex URLs
+- Do NOT show raw search queries to the user
+
+Always end with:
+  最新の正確な価格はこちらで確認できます:
   - [Google Flightsで確認](https://www.google.com/travel/flights?q=flights+from+ORIGIN+to+DESTINATION)
   - [価格比較 (Aviasales)](https://www.aviasales.com/search/ORIGDDMMDEST1)
 
-Never fabricate flight information — only present what web search actually returned."""
+Never fabricate flight information — present what web search returned, clearly marked as approximate."""
 
 
 def build_system_prompt(user_prompt: str | None = None, context_block: str | None = None) -> str:

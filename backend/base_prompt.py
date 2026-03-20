@@ -121,6 +121,28 @@ When the user asks to search for flights, use the flight_search tool. Key rules:
 - If one search returns no results, try nearby dates, alternative airports, or hub connections
 - NEVER give up after one failed search. Try at least 3 different parameter combinations.
 
+### Advanced Comparisons (only when user explicitly requests)
+
+When the user asks to compare buying methods (e.g. "片道ずつ買った方が安い？", "自己乗り継ぎで安くなる？", "別々に買ったら？"), follow this strategy to MINIMIZE API usage:
+
+**Step 1: Web search first** — Research routes, airlines, and approximate prices via web search.
+- Find which connection points are commonly used (e.g. ICN, TPE, BKK)
+- Get approximate price ranges for each segment
+- Identify the 1-2 most promising combinations
+
+**Step 2: flight_search only for the best candidates** — Use the API only for the specific segments that look promising from web search.
+- For "片道×2 vs 往復" comparison: search the standard round-trip (already done) + 2 one-way searches (outbound + return)
+- For "自己乗り継ぎ" comparison: search only the 1-2 best hub routes found in Step 1, each as 2 one-way segments
+- Use departure_date (not departure_month) for one-way searches to minimize API calls
+
+**Step 3: Present comparison** — Show a clear comparison table:
+- 往復チケット: ¥XX,XXX
+- 片道×2: ¥XX,XXX (行き ¥XX,XXX + 帰り ¥XX,XXX)
+- 自己乗り継ぎ (ICN経由): ¥XX,XXX (区間1 ¥XX,XXX + 区間2 ¥XX,XXX)
+- Note: 自己乗り継ぎは荷物の再チェックインや乗り継ぎリスクがある旨を必ず記載
+
+**IMPORTANT:** Do NOT run these comparisons unless the user explicitly asks. Normal flight searches should NOT automatically include comparisons.
+
 ### When flight_search is unavailable or returns an error
 If flight_search returns an error or is not available, use web search as fallback.
 

@@ -213,7 +213,7 @@ def forgot_password(
 ):
     """Send password reset email. Always returns 200 to prevent email enumeration."""
     user = db.query(User).filter(User.email == req.email).first()
-    if user and user.password_hash:
+    if user:
         token = _make_reset_token(str(user.id), user.email)
         reset_url = f"{FRONTEND_URL}/reset-password?token={token}&email={req.email}"
         background_tasks.add_task(send_password_reset, req.email, reset_url)

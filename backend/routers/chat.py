@@ -44,6 +44,13 @@ class ChatRequest(BaseModel):
     model: str = "gemini-2.5-flash-lite"
     thinking: bool = False
 
+    @field_validator("content")
+    @classmethod
+    def check_content_length(cls, v: str) -> str:
+        if len(v) > 50000:
+            raise ValueError("メッセージは50000文字以内にしてください。")
+        return v
+
     @field_validator("images")
     @classmethod
     def check_image_count(cls, v: list[ImageAttachment]) -> list[ImageAttachment]:

@@ -26,7 +26,7 @@ jobs:
       - name: Extract version and change summary
         id: info
         run: |
-          VERSION=$(grep -oP 'DEV v[\d.]+' frontend/app/chat/page.tsx || echo "DEV v?")
+          VERSION=$(grep -oE 'DEV v[0-9.]+' frontend/app/chat/page.tsx || echo "DEV v?")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # For merge commits: get feature branch commit messages via HEAD^1..HEAD^2
           CHANGES=""

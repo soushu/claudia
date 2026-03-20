@@ -113,9 +113,13 @@ type Props = {
   streamingModel?: string;
   /** Tool execution status message (e.g. "フライトを検索中...") */
   toolStatus?: string | null;
+  /** Pair index for fork functionality */
+  pairIndex?: number;
+  /** Called when user clicks fork button */
+  onFork?: (pairIndex: number) => void;
 };
 
-export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, streamingDebate, streamingModel, toolStatus }: Props) {
+export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, streamingDebate, streamingModel, toolStatus, pairIndex, onFork }: Props) {
   const t = useTranslations();
   const isStreaming = streamingText !== undefined;
 
@@ -177,6 +181,9 @@ export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, 
                     <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} modelId={pair.assistant.model} />
                   )}
                   <MessageCopyButton text={debateData.steps.find(s => s.id === "final")?.content || pair.assistant.content} />
+                  {onFork && pairIndex !== undefined && (
+                    <ForkButton onClick={() => onFork(pairIndex)} label={t("chat.fork")} />
+                  )}
                 </div>
               </div>
             )}
@@ -196,6 +203,9 @@ export default function QAPairBlock({ pair, collapsed, onToggle, streamingText, 
                     <TokenUsageTooltip usage={{ input_tokens: pair.assistant.input_tokens, output_tokens: pair.assistant.output_tokens!, cost: pair.assistant.cost }} modelId={pair.assistant.model} />
                   )}
                   <MessageCopyButton text={pair.assistant.content} />
+                  {onFork && pairIndex !== undefined && (
+                    <ForkButton onClick={() => onFork(pairIndex)} label={t("chat.fork")} />
+                  )}
                 </div>
               </div>
             )}
@@ -298,5 +308,22 @@ function StreamingDebateView({ rawText, modelA, modelB }: { rawText: string; mod
       streamingContent={isPacing ? undefined : currentContent}
       isPacing={isPacing}
     />
+  );
+}
+
+function ForkButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="p-1 text-t-faint hover:text-t-secondary transition-colors"
+      title={label}
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <circle cx="12" cy="4" r="2" />
+        <circle cx="6" cy="20" r="2" />
+        <circle cx="18" cy="20" r="2" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0l-6 6m6-6l6 6" />
+      </svg>
+    </button>
   );
 }

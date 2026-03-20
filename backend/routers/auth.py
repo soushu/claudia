@@ -90,8 +90,7 @@ def register(request: Request, req: RegisterRequest, db: DBSession = Depends(get
     """メール/パスワードで新規ユーザー登録。"""
     existing = db.query(User).filter(User.email == req.email).first()
     if existing:
-        # Return same response shape to prevent email enumeration
-        return {"id": str(existing.id), "email": existing.email, "name": existing.name}
+        raise HTTPException(status_code=409, detail="このメールアドレスは既に登録されています。")
 
     user = User(
         email=req.email,

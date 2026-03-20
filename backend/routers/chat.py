@@ -23,6 +23,7 @@ from backend.base_prompt import build_system_prompt
 from backend.providers import (
     ALLOWED_MODELS,
     GEMINI_FREE_POOL_MODELS,
+    MODEL_REGISTRY,
     get_provider,
     stream_provider,
     gemini_free_pool,
@@ -210,7 +211,8 @@ async def chat(
         context_lines = [f"- {c.content}" for c in active_contexts]
         context_block = "<context_memory>\nHere are things you know about the user:\n" + "\n".join(context_lines) + "\n</context_memory>"
 
-    system_prompt = build_system_prompt(user_prompt, context_block)
+    has_web_search = MODEL_REGISTRY.get(model, {}).get("supports_web_search", False)
+    system_prompt = build_system_prompt(user_prompt, context_block, has_web_search=has_web_search)
 
     return StreamingResponse(
         stream_response(session_id, req.content, req.images, api_key=x_api_key, model=model, system_prompt=system_prompt, user_id=current_user_id, anthropic_key=x_anthropic_key, thinking=req.thinking, google_fallback=google_fallback),

@@ -35,12 +35,7 @@ For each flight, ALWAYS show ALL of these in this format:
 NEVER omit the price. NEVER omit the links. Be assertive: "Book this" not "you might consider".
 If the cheapest flight is also in the TOP3, just note "最安値 is also the best overall".
 
-## Web Search for General Questions
-
-You have web search capability. Use it proactively for ANY question where up-to-date or factual information would help — not just travel queries.
-Examples: product reviews, company info, news, software details, event schedules, etc.
-NEVER say "I cannot access URLs" or "I cannot search" — you CAN search the web. Do it.
-
+{web_search_section}
 ## PROHIBITED
 - Asking the user to specify exact dates when you can infer a range
 - Generic travel advice or seasonal commentary without concrete data
@@ -137,12 +132,28 @@ Always end with EXACTLY this disclaimer and links (MANDATORY — never omit):
 
 Never fabricate flight information — present what web search returned, clearly marked as approximate."""
 
+_WEB_SEARCH_ENABLED = """## Web Search for General Questions
 
-def build_system_prompt(user_prompt: str | None = None, context_block: str | None = None) -> str:
+You have web search capability. Use it proactively for ANY question where up-to-date or factual information would help — not just travel queries.
+Examples: product reviews, company info, news, software details, event schedules, etc.
+NEVER say "I cannot access URLs" or "I cannot search" — you CAN search the web. Do it.
+
+"""
+
+_WEB_SEARCH_DISABLED = """## General Questions (No Web Search)
+
+You do NOT have web search in this mode. For questions requiring up-to-date information, answer from your knowledge and clearly note that the information may not be current.
+If the user needs live data (prices, reviews, latest news), suggest they try a model with web search enabled (e.g. Gemini or Claude).
+
+"""
+
+
+def build_system_prompt(user_prompt: str | None = None, context_block: str | None = None, has_web_search: bool = True) -> str:
     """Combine base prompt, user prompt, and context memory."""
     from datetime import date
     today = date.today()
-    base = _BASE_SYSTEM_PROMPT_TEMPLATE.format(today=today.isoformat(), year=today.year)
+    web_section = _WEB_SEARCH_ENABLED if has_web_search else _WEB_SEARCH_DISABLED
+    base = _BASE_SYSTEM_PROMPT_TEMPLATE.format(today=today.isoformat(), year=today.year, web_search_section=web_section)
     parts = [base]
     if user_prompt:
         parts.append(user_prompt)

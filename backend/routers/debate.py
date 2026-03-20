@@ -347,7 +347,7 @@ async def debate(
         context_lines = [f"- {c.content}" for c in active_contexts]
         context_block = "<context_memory>\nHere are things you know about the user:\n" + "\n".join(context_lines) + "\n</context_memory>"
 
-    system_prompt = build_system_prompt(user_prompt, context_block)
+    system_prompt = build_system_prompt(user_prompt, context_block, has_web_search=False)
 
     return StreamingResponse(
         stream_debate(

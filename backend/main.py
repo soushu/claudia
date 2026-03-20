@@ -31,8 +31,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "X-API-Key", "X-Anthropic-Key", "X-Google-Fallback-Key", "X-Internal-API-Key", "X-API-Key-A", "X-API-Key-B"],
 )
 
 
@@ -53,6 +53,10 @@ async def generic_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"},
     )
 
+
+_internal_key = os.getenv("INTERNAL_API_KEY", "")
+if _is_prod and len(_internal_key) < 32:
+    logger.warning("INTERNAL_API_KEY is too short (%d chars). Use at least 32 characters in production.", len(_internal_key))
 
 from backend.routers import auth, chat, contexts, debate, sessions
 

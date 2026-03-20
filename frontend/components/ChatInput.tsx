@@ -154,12 +154,24 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    // PC: Enter = send, Shift/Ctrl/Cmd+Enter = newline
+    if (e.key !== "Enter") return;
     // Mobile: Enter = newline (send via button only)
-    if (e.key === "Enter" && !isMobile && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    if (isMobile) return;
+    // PC: Ctrl/Cmd/Shift+Enter = insert newline
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
       e.preventDefault();
-      submit();
+      const ta = e.currentTarget;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const val = ta.value;
+      ta.value = val.substring(0, start) + "\n" + val.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + 1;
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+      return;
     }
+    // PC: Enter = send
+    e.preventDefault();
+    submit();
   }
 
   const handleDragEnter = useCallback((e: DragEvent) => {

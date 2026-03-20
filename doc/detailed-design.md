@@ -1,6 +1,6 @@
 # Mazelan 詳細設計書
 
-最終更新: 2026-03-20
+最終更新: 2026-03-21
 
 ---
 
@@ -20,7 +20,11 @@ backend/
 ├── context_extractor.py # コンテキスト自動抽出（Claude Haiku）
 ├── amazon_search.py     # Amazon 商品検索（SerpAPI）
 ├── flight_search.py     # フライト検索（SerpAPI + Travelpayouts）
+├── maps_search.py      # Google Maps 店舗確認（SerpAPI）
+├── slack_notify.py     # Slack 運用通知（新規ユーザー・エラー）
+├── email_sender.py     # メール送信（Resend API）
 ├── serpapi_cache.py     # SerpAPI インメモリ TTL キャッシュ
+├── serpapi_monitor.py   # SerpAPI 使用量モニタリング（日次レポート・閾値アラート）
 ├── seed_user.py         # ユーザー作成 CLI ユーティリティ
 └── routers/
     ├── auth.py          # 認証エンドポイント
@@ -55,7 +59,7 @@ backend/
 |-------------|------|---------|
 | Anthropic | `stream_anthropic()` | web_search 組み込み対応、thinking ブロック対応 |
 | OpenAI | `stream_openai()` | o-series は `max_completion_tokens` 使用、画像は data URI 形式 |
-| Google | `stream_google()` | `google_search` と `function_calling` は同一リクエストで併用不可 → 動的切替 |
+| Google | `stream_google()` | `google_search` と `function_calling` を同時渡し。併用不可エラー時は google_search のみにフォールバック |
 
 #### 1.2.3 メッセージフォーマット変換
 
@@ -76,7 +80,7 @@ backend/
   ↓
 AI がツール呼び出しを返す（tool_use）
   ↓
-ツール実行（amazon_search / flight_search）
+ツール実行（amazon_search / flight_search / google_maps_search）
   ↓
 結果を AI に返す（tool_result）
   ↓
@@ -86,7 +90,8 @@ AI が最終回答を生成（最大3ラウンド）
 - Anthropic: `tool_use` / `tool_result` コンテンツブロック
 - OpenAI: `function_calling` / `tool_calls` 形式
 - Gemini: `FunctionDeclaration` / `FunctionResponse` 形式
-- ディベートモードではツール無効化（`disable_tools=True`）
+- ディベートモードでは Web 検索のみ有効（`web_search_only=True`）
+  - カスタムツール（amazon/flight/maps）は無効、Web 検索は有効
 
 #### 1.2.5 Gemini フリーキープール
 
@@ -200,11 +205,11 @@ JSON 配列で返却: [{content, category}]
 ```
 入力: origin, destination, departure_month, day_from, day_to, trip_weeks
   ↓
-Step 1: day_from〜day_to から3つの候補日を均等に生成
+Step 1: day_from == day_to なら ±1日、それ以外は day_from〜day_to の全日を候補に
   ↓
 Step 2: 各候補日で片道検索（並列） → 最安2日程を選定
   ↓
-Step 3: 各安い出発日に対し、3つの帰国日候補を検索（並列）
+Step 3: 帰国日検索（return_month 指定時はそちらを使用、なければ trip_weeks±1日）
          → 最安の帰国日を特定
   ↓
 Step 4: 上位2組の日程で往復詳細検索（並列）
@@ -214,7 +219,7 @@ Step 5: スコアリング（price×1.0 + duration×50 + stops×10000）
 ```
 
 **SerpAPI 消費量**: 最大 ~11回/検索（キャッシュヒット時は0回）
-**キャッシュ TTL**: フライト 3時間、Amazon 1時間
+**キャッシュ TTL**: フライト 3時間、Amazon 1時間、Maps 2週間
 
 ### 1.7 システムプロンプト階層
 
@@ -250,13 +255,17 @@ Step 5: スコアリング（price×1.0 + duration×50 + stops×10000）
 | エンドポイント | 制限 |
 |---------------|------|
 | `/auth/register` | 3/min |
-| `/auth/login` | 5/min |
+| `/auth/login` | 3/min |
+| `/auth/forgot-password` | 3/min |
+| `/auth/reset-password` | 5/min |
+| `/auth/account` (DELETE) | 3/min |
 | `/auth/upsert-user` | 10/min |
 | `/chat/*` | 20/min |
 | `/debate/*` | 10/min |
 | `/sessions` (CRUD) | 30/min |
 | `/sessions/*/delete` | 20/min |
 | `/sessions/*/system-prompt` | 10/min |
+| `/sessions/*/fork` | 10/min |
 | `/contexts/*` | 20/min |
 
 ---
@@ -273,6 +282,7 @@ frontend/
 │   ├── page.tsx             # / → /chat リダイレクト
 │   ├── chat/page.tsx        # メインチャットページ（状態管理の中心）
 │   ├── login/page.tsx       # ログインページ
+│   ├── reset-password/page.tsx # パスワードリセット
 │   ├── terms/page.tsx       # 利用規約
 │   ├── privacy/page.tsx     # プライバシーポリシー
 │   └── api/auth/[...nextauth]/route.ts  # NextAuth ハンドラ
@@ -292,7 +302,8 @@ frontend/
 │   ├── types.ts             # TypeScript 型定義
 │   ├── apiKeyStore.ts       # localStorage API キー管理
 │   ├── themeContext.tsx      # テーマ Context
-│   └── exportChat.ts        # チャットエクスポート
+│   ├── exportChat.ts        # チャットエクスポート
+│   └── offlineQueue.ts     # オフライン操作キュー（PWA）
 ├── i18n/
 │   └── request.ts           # next-intl サーバー設定
 ├── messages/
@@ -323,11 +334,13 @@ Redux/Zustand は未使用。React hooks + Context API で管理。
 
 | キー | 内容 | 用途 |
 |------|------|------|
-| `claudia-sessions` | セッション一覧 | 初回ロード高速化 |
-| `claudia-active-session` | アクティブセッション ID | セッション復元 |
-| `claudia-model-{sessionId}` | モデル ID | セッション別モデル選択保持 |
-| `claudia-theme` | テーマ名 | テーマ永続化 |
-| `anthropic-api-key` 等 | API キー | BYOK キー保持 |
+| `mazelan_sessions` | セッション一覧 | 初回ロード高速化 |
+| `mazelan_active_session` | アクティブセッション ID | セッション復元 |
+| `mazelan_session_models` | モデル ID | セッション別モデル選択保持 |
+| `mazelan_model` / `mazelan_model2` | デフォルトモデル | モデル選択永続化 |
+| `mazelan_{provider}_api_key` | API キー（AES-GCM 暗号化） | BYOK キー保持 |
+| `mazelan_offline_queue` | オフライン操作キュー | PWA でのスター/削除/リネーム |
+| `mazelan_user_id` | ユーザー ID | ユーザー切替検知・キャッシュクリア |
 
 #### Context API
 
@@ -342,12 +355,13 @@ Redux/Zustand は未使用。React hooks + Context API で管理。
 #### ChatInput
 
 ```
-送信方法: Cmd+Enter (Mac) / Ctrl+Enter (Win) = 送信
-          Enter = 改行
+送信方法: Enter = 送信（PC）、Shift/Ctrl+Enter = 改行（PC）
+          Enter = 改行 + 送信ボタン（モバイル）
 
 機能:
 - テキスト入力（textarea、自動リサイズ）
 - 画像添付（クリップボード貼り付け or ファイル選択）
+- スマホカメラ入力（モバイルのみ、capture="environment"）
 - モデル選択ドロップダウン
 - ディベートモード切替
 - 拡張思考モード切替
@@ -364,7 +378,8 @@ Redux/Zustand は未使用。React hooks + Context API で管理。
 ├── アシスタントメッセージ（回答）
 │   ├── MessageContent（Markdown レンダリング）
 │   ├── DebateDisplay（ディベート時）
-│   └── TokenUsageTooltip（トークン/コスト）
+│   ├── TokenUsageTooltip（トークン/コスト）
+│   └── ForkButton（分岐ボタン、Git 分岐風アイコン）
 └── 折りたたみ/展開ボタン
 
 動作:
@@ -391,7 +406,9 @@ Redux/Zustand は未使用。React hooks + Context API で管理。
 │   └── コンテキストメモリ設定
 ├── テーマ切替ボタン
 ├── 言語切替ボタン
-└── ユーザー情報 + ログアウト
+└── ユーザー情報
+    ├── ログアウト
+    └── アカウント削除
 ```
 
 ### 2.4 API クライアント（lib/api.ts）
@@ -648,9 +665,10 @@ e2-small (0.5vCPU / 2GB RAM) 向けの軽量設定:
 
 | 項目 | 値 |
 |------|-----|
-| 用途 | Amazon 商品検索、Google Flights 検索 |
+| 用途 | Amazon 商品検索、Google Flights 検索、Google Maps 店舗確認 |
 | 無料枠 | 250回/月 |
-| キャッシュ | インメモリ TTL（Amazon: 1時間、フライト: 3時間） |
+| キャッシュ | インメモリ TTL（Amazon: 1時間、フライト: 3時間、Maps: 2週間） |
+| 使用量モニタリング | 日次サマリー（JST 1:00）+ 閾値アラート（残50/20/10回）→ Slack |
 | フォールバック | エラー時は Web 検索で代替（注意書き付き） |
 | 環境変数 | `SERPAPI_KEY` |
 
@@ -673,8 +691,19 @@ e2-small (0.5vCPU / 2GB RAM) 向けの軽量設定:
 
 | 項目 | 値 |
 |------|-----|
-| 用途 | デプロイ通知 |
-| チャンネル | Mazelan 本番 / Mazelan ステージング |
+| 用途 | デプロイ通知 + 新規ユーザー登録通知 + サーバーエラー通知 + SerpAPI 日次レポート |
+| チャンネル | デプロイ通知 / 運用通知 |
+| 環境変数 | `SLACK_OPS_WEBHOOK_URL`（運用通知用） |
+
+### 5.5 Resend
+
+| 項目 | 値 |
+|------|-----|
+| 用途 | パスワードリセットメール送信 |
+| 無料枠 | 100通/日 |
+| 送信元 | noreply@mazelan.ai |
+| DNS | SPF/DKIM/DMARC（Cloudflare で設定済み） |
+| 環境変数 | `RESEND_API_KEY` |
 
 ---
 
@@ -687,7 +716,9 @@ e2-small (0.5vCPU / 2GB RAM) 向けの軽量設定:
 | `DATABASE_URL` | ✓ | PostgreSQL 接続文字列 |
 | `SERPAPI_KEY` | - | SerpAPI キー（ツール使用に必要） |
 | `TRAVELPAYOUTS_TOKEN` | - | Travelpayouts トークン |
-| `CLOUDFLARE_API_TOKEN` | - | Cloudflare API トークン |
+| `RESEND_API_KEY` | - | Resend API キー（パスワードリセット） |
+| `SLACK_OPS_WEBHOOK_URL` | - | Slack 運用通知 Webhook URL |
+| `FRONTEND_URL` | - | フロントエンド URL（リセットメールのリンク用） |
 
 ### 6.2 バックエンド (.env.production)
 

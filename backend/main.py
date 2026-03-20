@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from fastapi import FastAPI, Request
@@ -63,7 +62,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
     from backend.slack_notify import notify_error
-    asyncio.create_task(notify_error(str(request.url.path), str(exc)))
+    notify_error(str(request.url.path), str(exc))
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},

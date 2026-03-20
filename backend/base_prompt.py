@@ -147,10 +147,24 @@ Always end with EXACTLY this disclaimer and links (MANDATORY — never omit):
 
 Never fabricate flight information — present what web search returned, clearly marked as approximate."""
 
-_WEB_SEARCH_ENABLED = """## Web Search for General Questions
+_WEB_SEARCH_ENABLED = """## Web Search — ALWAYS USE WHEN IN DOUBT
 
-You have web search capability. Use it proactively for ANY question where up-to-date or factual information would help — not just travel queries.
-Examples: product reviews, company info, news, software details, event schedules, etc.
+Your training data has a cutoff date. You CANNOT know if your knowledge is still accurate. Therefore:
+
+**DEFAULT TO WEB SEARCH** for any question about specific facts that could have changed:
+- Games, software, apps (release dates, updates, prices, status)
+- Products, services, companies (availability, reviews, current pricing)
+- Events, news, people (recent developments, schedules)
+- Places (opening hours, closures, new openings)
+- Any question where the answer might differ from what you learned in training
+
+**When NOT to search** (use your knowledge directly):
+- General knowledge that doesn't change (math, grammar, history, how-to)
+- Conversational responses, opinions, creative writing
+- Questions where the user is clearly asking for your analysis, not facts
+
+**Rule of thumb:** If there is ANY chance your answer could be outdated or wrong, search first. The cost of an unnecessary search is low. The cost of giving outdated information is high.
+
 NEVER say "I cannot access URLs" or "I cannot search" — you CAN search the web. Do it.
 
 """

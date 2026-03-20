@@ -3,6 +3,10 @@
     "name": "Mazelan"
   },
   "auth": {
+    "tagline": "AIと一緒に、旅を計画しよう",
+    "feature1": "AIが最適な旅行プランを提案",
+    "feature2": "リアルタイムでフライトを検索",
+    "feature3": "Web検索で最新情報を取得",
     "signInTitle": "ログインしてください",
     "signUpTitle": "アカウントを作成",
     "signInWithGoogle": "Googleでログイン",

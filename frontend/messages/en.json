@@ -3,6 +3,10 @@
     "name": "Mazelan"
   },
   "auth": {
+    "tagline": "Plan your trip with AI",
+    "feature1": "AI suggests the best travel plans",
+    "feature2": "Search flights in real time",
+    "feature3": "Get the latest info via web search",
     "signInTitle": "Sign in to continue",
     "signUpTitle": "Create your account",
     "signInWithGoogle": "Sign in with Google",

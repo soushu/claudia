@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useCallback, useMemo, KeyboardEvent, DragEvent } from "react";
 import { MODEL_GROUPS, type ModelId } from "@/lib/types";
-import { getApiKeyForProvider, waitForCache } from "@/lib/apiKeyStore";
+import { getApiKeyForProvider } from "@/lib/apiKeyStore";
 import { useTranslations } from "next-intl";
 
 const COST_LABELS: Record<string, string> = {
@@ -81,7 +81,16 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
   const [secondModel, setSecondModel] = useState<ModelId>(() => getSessionModel(null).model2);
   const [thinking, setThinking] = useState(false);
   const [, forceUpdate] = useState(0);
-  useEffect(() => { waitForCache().then(() => forceUpdate((n) => n + 1)); }, []);
+  // Poll for API key cache loading (encrypted keys need async decryption)
+  useEffect(() => {
+    let prev = "";
+    const id = setInterval(() => {
+      const curr = [getApiKeyForProvider("anthropic"), getApiKeyForProvider("openai"), getApiKeyForProvider("google")].join(",");
+      if (curr !== prev) { prev = curr; forceUpdate((n) => n + 1); }
+    }, 200);
+    const stop = setTimeout(() => clearInterval(id), 3000);
+    return () => { clearInterval(id); clearTimeout(stop); };
+  }, []);
   const hasGoogleKey = !!getApiKeyForProvider("google");
 
   function isModelLocked(modelId: string, provider: string): boolean {

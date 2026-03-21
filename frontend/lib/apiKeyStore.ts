@@ -85,6 +85,21 @@ function isEncrypted(value: string): boolean {
 // ── In-memory cache (avoid async reads on every render) ───
 const cache: Record<string, string | null> = {};
 let cacheLoaded = false;
+let cacheReadyResolve: (() => void) | null = null;
+const cacheReadyPromise = typeof window !== "undefined"
+  ? new Promise<void>((resolve) => { cacheReadyResolve = resolve; })
+  : Promise.resolve();
+const cacheListeners: Array<() => void> = [];
+
+/** Subscribe to cache ready event. Returns unsubscribe function. */
+export function onCacheReady(fn: () => void): () => void {
+  if (cacheLoaded) { fn(); return () => {}; }
+  cacheListeners.push(fn);
+  return () => { const i = cacheListeners.indexOf(fn); if (i >= 0) cacheListeners.splice(i, 1); };
+}
+
+/** Wait for cache to be loaded. */
+export const waitForCache = () => cacheReadyPromise;
 
 async function loadCache(): Promise<void> {
   if (cacheLoaded || typeof window === "undefined") return;
@@ -118,6 +133,11 @@ async function loadCache(): Promise<void> {
       }
     }
   }
+
+  // Notify listeners that cache is ready
+  cacheReadyResolve?.();
+  cacheListeners.forEach((fn) => fn());
+  cacheListeners.length = 0;
 }
 
 // Eagerly load cache

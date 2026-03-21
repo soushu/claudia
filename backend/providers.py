@@ -526,15 +526,12 @@ async def _stream_google_with_key(
 
                 # If no function calls, check if we should switch to google_search
                 if not function_calls:
-                    if enable_search:
-                        # Function calling not used → switch to google_search and retry
+                    if enable_search and not used_function_calling:
+                        # First round had no tool use → switch to google_search and retry
                         config.tools = _gemini_search_tool()
                         enable_search = False
-                        if not used_function_calling:
-                            # First round had no tool use → retry with google_search
-                            break
-                        # Function calling completed → allow one more round with search
                         break
+                    # Function calling was used and completed → done (don't add another search round)
                     yield {"input_tokens": total_input, "output_tokens": total_output}
                     return
 

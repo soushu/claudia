@@ -86,6 +86,11 @@ def create_context(
     current_user_id: uuid.UUID = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
+    MAX_CONTEXTS_PER_USER = 200
+    count = db.query(Context).filter(Context.user_id == current_user_id).count()
+    if count >= MAX_CONTEXTS_PER_USER:
+        raise HTTPException(status_code=400, detail=f"コンテキストの上限（{MAX_CONTEXTS_PER_USER}件）に達しています。不要なものを削除してください。")
+
     ctx = Context(
         user_id=current_user_id,
         content=req.content.strip(),

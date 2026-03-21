@@ -256,10 +256,9 @@ def _has_api_error(results: list[dict]) -> str | None:
 
 async def _search_calendar(
     origin: str, destination: str,
-    dep_start: str, dep_end: str,
-    ret_start: str | None = None, ret_end: str | None = None,
+    outbound_date: str, return_date: str | None = None,
 ) -> list[dict]:
-    """Search Google Flights Calendar API for cheapest dates in a range. 1 API call."""
+    """Search Google Flights Calendar API. API auto-searches ±1 week around given dates."""
     if not SEARCHAPI_KEY:
         return []
 
@@ -267,21 +266,19 @@ async def _search_calendar(
         "engine": "google_flights_calendar",
         "departure_id": origin.upper(),
         "arrival_id": destination.upper(),
-        "outbound_date_start": dep_start,
-        "outbound_date_end": dep_end,
+        "outbound_date": outbound_date,
         "currency": "JPY",
         "hl": "ja",
         "api_key": SEARCHAPI_KEY,
     }
-    if ret_start and ret_end:
-        params["return_date_start"] = ret_start
-        params["return_date_end"] = ret_end
+    if return_date:
+        params["return_date"] = return_date
         params["flight_type"] = "round_trip"
     else:
         params["flight_type"] = "one_way"
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
+        async with httpx.AsyncClient(timeout=45.0) as client:
             resp = await client.get(SEARCHAPI_BASE, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -386,31 +383,34 @@ async def search_flights(
     logger.info("Flight search %s→%s: calendar %s~%s, return %s~%s", origin, destination, dep_start, dep_end, ret_start, ret_end)
 
     # Step 2: Use Calendar API to find cheapest date combination (1 API call)
-    calendar = await _search_calendar(origin, destination, dep_start.isoformat(), dep_end.isoformat(), ret_start, ret_end)
+    dep_mid = dep_start + (dep_end - dep_start) // 2
+    calendar = await _search_calendar(origin, destination, dep_mid.isoformat(), ret_start)
 
-    if not calendar:
-        return [{"error": f"flight_search is temporarily unavailable. DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
-
-    # Find best date pairs from calendar
-    valid_entries = [e for e in calendar if e.get("price") and not e.get("has_no_flights")]
-    if not valid_entries:
-        return [{"error": f"No flights found for {origin}→{destination} in the specified range. Try different dates."}]
-
-    valid_entries.sort(key=lambda e: e.get("price", 999999))
-    # Take top 2 cheapest date combos
     date_pairs: list[tuple[str, str]] = []
-    for entry in valid_entries[:2]:
-        dep = entry.get("departure", "")
-        ret = entry.get("return", "")
-        if dep and ret:
-            date_pairs.append((dep, ret))
 
+    if calendar:
+        # Find best date pairs from calendar (filter to user's requested departure range)
+        dep_start_str = dep_start.isoformat()
+        dep_end_str = dep_end.isoformat()
+        valid_entries = [
+            e for e in calendar
+            if e.get("price") and not e.get("has_no_flights")
+            and dep_start_str <= e.get("departure", "") <= dep_end_str
+        ]
+        if valid_entries:
+            valid_entries.sort(key=lambda e: e.get("price", 999999))
+            for entry in valid_entries[:2]:
+                dep = entry.get("departure", "")
+                ret = entry.get("return", "")
+                if dep and ret:
+                    date_pairs.append((dep, ret))
+            logger.info("Flight search %s→%s: cheapest combos from calendar %s", origin, destination, date_pairs)
+
+    # Fallback: if Calendar API failed or returned no results, use dep_mid + default return
     if not date_pairs:
-        # Fallback: use first valid entry
-        e = valid_entries[0]
-        date_pairs.append((e.get("departure", dep_start.isoformat()), e.get("return", ret_start)))
-
-    logger.info("Flight search %s→%s: cheapest combos from calendar %s", origin, destination, date_pairs)
+        ret_date_fallback = (dep_mid + timedelta(days=trip_weeks * 7)).isoformat()
+        date_pairs.append((dep_mid.isoformat(), ret_date_fallback))
+        logger.info("Flight search %s→%s: calendar fallback, using %s", origin, destination, date_pairs)
 
     # Step 4: Search round-trip for best date pairs (parallel)
     rt_tasks = [

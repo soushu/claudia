@@ -80,17 +80,6 @@ export default function ChatInput({ onSubmit, disabled, sessionId, onOpenApiKeyM
   const [debateMode, setDebateMode] = useState(false);
   const [secondModel, setSecondModel] = useState<ModelId>(() => getSessionModel(null).model2);
   const [thinking, setThinking] = useState(false);
-  const [, forceUpdate] = useState(0);
-  // Poll for API key cache loading (encrypted keys need async decryption)
-  useEffect(() => {
-    let prev = "";
-    const id = setInterval(() => {
-      const curr = [getApiKeyForProvider("anthropic"), getApiKeyForProvider("openai"), getApiKeyForProvider("google")].join(",");
-      if (curr !== prev) { prev = curr; forceUpdate((n) => n + 1); }
-    }, 200);
-    const stop = setTimeout(() => clearInterval(id), 3000);
-    return () => { clearInterval(id); clearTimeout(stop); };
-  }, []);
   const hasGoogleKey = !!getApiKeyForProvider("google");
 
   function isModelLocked(modelId: string, provider: string): boolean {

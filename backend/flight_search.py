@@ -272,10 +272,10 @@ def _has_api_error(results: list[dict]) -> str | None:
 
 async def _search_calendar(
     origin: str, destination: str,
-    dep_start: str, dep_end: str,
-    ret_start: str | None = None, ret_end: str | None = None,
+    outbound_date: str, return_date: str | None = None,
 ) -> list[dict]:
-    """Search Google Flights Calendar API for cheapest dates in a range. 1 API call."""
+    """Search Google Flights Calendar API for cheapest dates around given dates. 1 API call.
+    The API automatically searches ±1 week around the given dates."""
     if not SEARCHAPI_KEY:
         return []
 
@@ -283,15 +283,13 @@ async def _search_calendar(
         "engine": "google_flights_calendar",
         "departure_id": origin.upper(),
         "arrival_id": destination.upper(),
-        "outbound_date_start": dep_start,
-        "outbound_date_end": dep_end,
+        "outbound_date": outbound_date,
         "currency": "JPY",
         "hl": "ja",
         "api_key": SEARCHAPI_KEY,
     }
-    if ret_start and ret_end:
-        params["return_date_start"] = ret_start
-        params["return_date_end"] = ret_end
+    if return_date:
+        params["return_date"] = return_date
         params["flight_type"] = "round_trip"
     else:
         params["flight_type"] = "one_way"
@@ -399,16 +397,24 @@ async def search_flights(
         ret_start = (dep_start + timedelta(days=trip_weeks * 7 - 1)).isoformat()
         ret_end = (dep_end + timedelta(days=trip_weeks * 7 + 1)).isoformat()
 
-    logger.info("Flight search %s→%s: calendar %s~%s, return %s~%s", origin, destination, dep_start, dep_end, ret_start, ret_end)
+    # Use middle of departure range as base date for calendar search
+    dep_mid = dep_start + (dep_end - dep_start) // 2
+    logger.info("Flight search %s→%s: calendar base dep=%s, ret=%s", origin, destination, dep_mid, ret_start)
 
     # Step 2: Use Calendar API to find cheapest date combination (1 API call)
-    calendar = await _search_calendar(origin, destination, dep_start.isoformat(), dep_end.isoformat(), ret_start, ret_end)
+    calendar = await _search_calendar(origin, destination, dep_mid.isoformat(), ret_start)
 
     if not calendar:
         return [{"error": f"flight_search is temporarily unavailable. DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
 
-    # Find best date pairs from calendar
-    valid_entries = [e for e in calendar if e.get("price") and not e.get("has_no_flights")]
+    # Find best date pairs from calendar (filter to user's requested departure range)
+    dep_start_str = dep_start.isoformat()
+    dep_end_str = dep_end.isoformat()
+    valid_entries = [
+        e for e in calendar
+        if e.get("price") and not e.get("has_no_flights")
+        and dep_start_str <= e.get("departure", "") <= dep_end_str
+    ]
     if not valid_entries:
         return [{"error": f"No flights found for {origin}→{destination} in the specified range. Try different dates."}]
 

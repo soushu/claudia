@@ -499,6 +499,7 @@ async def _stream_google_with_key(
     total_input = 0
     total_output = 0
     used_function_calling = False
+    is_first_round = True
     for _round in range(max_tool_rounds + 1):
         for attempt in range(max_retries):
             try:
@@ -507,9 +508,14 @@ async def _stream_google_with_key(
                 )
                 usage_data = None
                 function_calls = []
+                buffered_text = []
                 async for chunk in stream:
                     if chunk.text:
-                        yield chunk.text
+                        if is_first_round and enable_search:
+                            # Buffer text on first round — may discard if switching to google_search
+                            buffered_text.append(chunk.text)
+                        else:
+                            yield chunk.text
                     if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
                         um = chunk.usage_metadata
                         usage_data = {
@@ -531,13 +537,21 @@ async def _stream_google_with_key(
                 # If no function calls, done or switch to google_search
                 if not function_calls:
                     if not used_function_calling and enable_search:
-                        # No tool use at all → general question, switch to google_search
+                        # No tool use at all → discard buffered text, switch to google_search
                         config.tools = _gemini_search_tool()
                         enable_search = False
+                        is_first_round = False
                         break  # Retry with google_search
-                    # Done — either tool was used or no search needed
+                    # Done — flush any buffered text
+                    for t in buffered_text:
+                        yield t
                     yield {"input_tokens": total_input, "output_tokens": total_output}
                     return
+
+                # Function calls found — flush buffered text before executing
+                for t in buffered_text:
+                    yield t
+                is_first_round = False
 
                 # Execute function calls and build responses
                 used_function_calling = True

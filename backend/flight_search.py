@@ -16,7 +16,6 @@ from backend.serpapi_cache import get as cache_get, put as cache_put
 logger = logging.getLogger(__name__)
 
 SEARCHAPI_KEY = os.environ.get("SEARCHAPI_KEY", "")
-TRAVELPAYOUTS_TOKEN = os.environ.get("TRAVELPAYOUTS_TOKEN", "")
 SEARCHAPI_BASE = "https://www.searchapi.io/api/v1/search"
 
 
@@ -163,20 +162,6 @@ def _fix_date(date_str: str) -> str:
 
 
 
-def _build_aviasales_link(origin: str, dest: str, dep_date: str, ret_date: str | None) -> str:
-    """Build Aviasales search URL."""
-    try:
-        dep_dt = datetime.strptime(dep_date, "%Y-%m-%d")
-        dep_ddmm = dep_dt.strftime("%d%m")
-        if ret_date:
-            ret_dt = datetime.strptime(ret_date, "%Y-%m-%d")
-            ret_ddmm = ret_dt.strftime("%d%m")
-            return f"https://www.aviasales.com/search/{origin}{dep_ddmm}{dest}{ret_ddmm}1"
-        return f"https://www.aviasales.com/search/{origin}{dep_ddmm}{dest}1"
-    except ValueError:
-        return f"https://www.aviasales.com/search/{origin}{dest}1"
-
-
 # ── Google Flights search ──
 
 async def _search_google_flights(
@@ -241,7 +226,6 @@ async def _search_google_flights(
                     "currency": "JPY",
                     "departure_date": departure_date,
                     "return_date": return_date or "",
-                    "search_link": _build_aviasales_link(dep_airport, arr_airport, departure_date, return_date),
                     "google_flights_link": gf_url,
                     "_score": _flight_score(price, duration, stops),
                 })

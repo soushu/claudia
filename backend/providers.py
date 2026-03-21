@@ -526,20 +526,19 @@ async def _stream_google_with_key(
                     total_input += usage_data["input_tokens"]
                     total_output += usage_data["output_tokens"]
 
-                # If no function calls, check if we should switch to google_search
+                # If no function calls, done or switch to google_search
                 if not function_calls:
-                    if enable_search and not used_function_calling:
-                        # First round had no tool use → switch to google_search and retry
+                    if not used_function_calling and enable_search:
+                        # No tool use at all → general question, switch to google_search
                         config.tools = _gemini_search_tool()
                         enable_search = False
-                        break
-                    # Function calling was used and completed → done (don't add another search round)
+                        break  # Retry with google_search
+                    # Done — either tool was used or no search needed
                     yield {"input_tokens": total_input, "output_tokens": total_output}
                     return
 
                 # Execute function calls and build responses
                 used_function_calling = True
-                has_tool_error = False
                 fc_parts = [genai_types.Part.from_function_call(name=fc.name, args=dict(fc.args) if fc.args else {}) for fc in function_calls]
                 contents.append(genai_types.Content(role="model", parts=fc_parts))
 
@@ -552,19 +551,11 @@ async def _stream_google_with_key(
                         yield status
                     result_str = await _execute_tool(fc.name, args)
                     result_data = json.loads(result_str)
-                    # Detect tool errors
-                    if isinstance(result_data, list) and result_data and "error" in result_data[0]:
-                        has_tool_error = True
                     fr_parts.append(genai_types.Part.from_function_response(
                         name=fc.name,
                         response={"result": result_data},
                     ))
                 contents.append(genai_types.Content(role="user", parts=fr_parts))
-
-                # If tool returned an error, switch to google_search for fallback
-                if has_tool_error and enable_search:
-                    config.tools = _gemini_search_tool()
-                    enable_search = False
                 yield "<!--STATUS:-->"  # Clear status
                 break  # Success for this round, proceed to next tool round
 

@@ -145,9 +145,12 @@ When the user asks to search for flights, follow this 2-step process:
 
 ### Step 1: Verify Airport Codes via Web Search
 Before calling flight_search, use web search to confirm the CURRENT IATA airport codes for the destination.
-Airport codes change when new airports open (e.g. Cambodia's Siem Reap changed from REP to SAI, Phnom Penh from PNH to KTI).
-Do NOT rely on your training data for airport codes — always verify via web search first.
+Airport codes change when new airports open. Do NOT rely on your training data — always verify via web search first.
 For well-known major airports (NRT, HND, KIX, BKK, SGN, HAN, ICN, TPE, HKG) you can skip this step.
+
+**Known airport code changes (use these, do NOT use old codes):**
+- Cambodia Phnom Penh: PNH is CLOSED → use **KTI** (Techo International Airport, opened 2025-09)
+- Cambodia Siem Reap: REP is CLOSED → use **SAI** (Siem Reap-Angkor International Airport)
 
 ### Step 2: Call flight_search with verified codes
 

@@ -49,6 +49,10 @@ FLIGHT_SEARCH_TOOL = {
                 "type": "string",
                 "description": "Target departure month in YYYY-MM format (e.g. '2026-04')",
             },
+            "departure_week": {
+                "type": "integer",
+                "description": "Week number of the month (1-5). If set, overrides day_from/day_to. Week = Sunday-Saturday calendar week.",
+            },
             "departure_day_from": {
                 "type": "integer",
                 "description": "Earliest departure day of month. Default: 1",
@@ -62,6 +66,10 @@ FLIGHT_SEARCH_TOOL = {
             "return_month": {
                 "type": "string",
                 "description": "Return month in YYYY-MM format. If omitted, calculated from departure + trip_weeks.",
+            },
+            "return_week": {
+                "type": "integer",
+                "description": "Return week number of the month (1-5). If set, overrides return_day_from/return_day_to.",
             },
             "return_day_from": {
                 "type": "integer",
@@ -305,11 +313,38 @@ async def _search_calendar(
         return []
 
 
+def _week_to_days(year: int, month: int, week: int) -> tuple[int, int]:
+    """Convert week number (1-5) to day_from, day_to for a given month.
+    Week boundaries are Sunday-Saturday."""
+    import calendar
+    first_day = date(year, month, 1)
+    first_weekday = first_day.weekday()  # 0=Mon, 6=Sun
+    # Convert to Sun=0 based
+    first_sun_based = (first_weekday + 1) % 7  # 0=Sun, 1=Mon, ..., 6=Sat
+
+    if week == 1:
+        day_from = 1
+        day_to = 7 - first_sun_based  # Days until first Saturday
+    else:
+        # First full week starts on first Sunday after week 1
+        first_sunday = 7 - first_sun_based + 1
+        day_from = first_sunday + (week - 2) * 7
+        day_to = day_from + 6
+
+    # Clamp to month bounds
+    last_day = calendar.monthrange(year, month)[1]
+    day_from = max(1, min(day_from, last_day))
+    day_to = max(1, min(day_to, last_day))
+    return day_from, day_to
+
+
 async def search_flights(
     origin: str, destination: str,
     departure_month: str = "",  # YYYY-MM
+    departure_week: int = 0,  # Week number (1-5), overrides day_from/day_to
     departure_day_from: int = 1, departure_day_to: int = 10,
     return_month: str = "",  # YYYY-MM (optional, explicit return date range)
+    return_week: int = 0,  # Return week number (1-5)
     return_day_from: int = 0, return_day_to: int = 0,
     trip_weeks: int = 2, adults: int = 1,
     # Legacy params (backward compat)
@@ -327,6 +362,22 @@ async def search_flights(
 
     origin = origin.upper()
     destination = destination.upper()
+
+    # Convert week numbers to day ranges (server-side calendar calculation)
+    if departure_week and departure_month:
+        try:
+            y, m = map(int, departure_month.split("-"))
+            departure_day_from, departure_day_to = _week_to_days(y, m, departure_week)
+            logger.info("Week %d of %s → day %d-%d", departure_week, departure_month, departure_day_from, departure_day_to)
+        except Exception:
+            pass
+    if return_week and return_month:
+        try:
+            ry, rm = map(int, return_month.split("-"))
+            return_day_from, return_day_to = _week_to_days(ry, rm, return_week)
+            logger.info("Return week %d of %s → day %d-%d", return_week, return_month, return_day_from, return_day_to)
+        except Exception:
+            pass
 
     # Handle legacy single-date calls
     if departure_date and not departure_month:

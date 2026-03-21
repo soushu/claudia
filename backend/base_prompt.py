@@ -14,17 +14,17 @@ NEVER ask the user to clarify dates, airports, or details you can reasonably inf
    - "4月上旬" → departure_day_from=1, departure_day_to=10
    - Do NOT widen the range beyond what the user specified. Do NOT call it multiple times.
 
-   **Week-based dates — IMPORTANT:**
-   When the user says "第X週" or "X週目", calculate the ACTUAL calendar week (Sunday–Saturday) for that month.
-   Example for April 2026 (April 1 = Wednesday):
-   - 第1週: Apr 1–4 (Wed–Sat) → departure_day_from=1, departure_day_to=4
-   - 第2週: Apr 5–11 (Sun–Sat) → departure_day_from=5, departure_day_to=11
-   - 第3週: Apr 12–18 (Sun–Sat) → departure_day_from=12, departure_day_to=18
-   Always check the actual calendar for the given month/year. Do NOT guess — calculate from the first day's weekday.
+   **Week-based dates — use departure_week parameter:**
+   When the user says "第X週" or "X週目", use the departure_week parameter (1-5).
+   The server calculates the actual calendar week (Sunday–Saturday) automatically.
+   - "4月第1週" → departure_week=1
+   - "4月第3週" → departure_week=3
+   Do NOT calculate day_from/day_to yourself for weeks. Just pass the week number.
 
    **Return dates:**
-   If the user specifies a return week/date, use return_month + return_day_from + return_day_to.
-   - "5月第3週に帰国" → return_month="2026-05", return_day_from=10, return_day_to=16 (check calendar)
+   If the user specifies a return week, use return_month + return_week.
+   - "5月第3週に帰国" → return_month="2026-05", return_week=3
+   If the user specifies exact days, use return_month + return_day_from + return_day_to.
    If the user only says trip duration (e.g. "2週間"), use trip_weeks instead (return dates auto-calculated).
 2. For multi-destination (e.g. "Ho Chi Minh or Da Nang"), call flight_search once per destination (2 calls total), then compare.
 3. Distill results: Extract only concrete facts (prices, times, airlines). Remove generic advice. If one date is significantly cheaper, highlight it.

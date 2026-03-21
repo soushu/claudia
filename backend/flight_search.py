@@ -256,9 +256,14 @@ def _has_api_error(results: list[dict]) -> str | None:
 
 async def _search_calendar(
     origin: str, destination: str,
-    outbound_date: str, return_date: str | None = None,
+    outbound_date: str,
+    return_date: str | None = None,
+    outbound_date_start: str | None = None,
+    outbound_date_end: str | None = None,
+    return_date_start: str | None = None,
+    return_date_end: str | None = None,
 ) -> list[dict]:
-    """Search Google Flights Calendar API. API auto-searches ±1 week around given dates."""
+    """Search Google Flights Calendar API with optional date ranges."""
     if not SEARCHAPI_KEY:
         return []
 
@@ -271,11 +276,19 @@ async def _search_calendar(
         "hl": "ja",
         "api_key": SEARCHAPI_KEY,
     }
+    if outbound_date_start:
+        params["outbound_date_start"] = outbound_date_start
+    if outbound_date_end:
+        params["outbound_date_end"] = outbound_date_end
     if return_date:
         params["return_date"] = return_date
         params["flight_type"] = "round_trip"
     else:
         params["flight_type"] = "one_way"
+    if return_date_start:
+        params["return_date_start"] = return_date_start
+    if return_date_end:
+        params["return_date_end"] = return_date_end
 
     try:
         async with httpx.AsyncClient(timeout=45.0) as client:
@@ -384,7 +397,16 @@ async def search_flights(
 
     # Step 2: Use Calendar API to find cheapest date combination (1 API call)
     dep_mid = dep_start + (dep_end - dep_start) // 2
-    calendar = await _search_calendar(origin, destination, dep_mid.isoformat(), ret_start)
+    ret_mid_date = datetime.strptime(ret_start, "%Y-%m-%d").date() + (datetime.strptime(ret_end, "%Y-%m-%d").date() - datetime.strptime(ret_start, "%Y-%m-%d").date()) // 2
+    calendar = await _search_calendar(
+        origin, destination,
+        outbound_date=dep_mid.isoformat(),
+        return_date=ret_mid_date.isoformat(),
+        outbound_date_start=dep_start.isoformat(),
+        outbound_date_end=dep_end.isoformat(),
+        return_date_start=ret_start,
+        return_date_end=ret_end,
+    )
 
     date_pairs: list[tuple[str, str]] = []
 
@@ -422,10 +444,10 @@ async def search_flights(
     all_flights = []
     for r in rt_results:
         if isinstance(r, list):
-            all_flights.extend(r)
+            all_flights.extend([f for f in r if "_api_error" not in f])
 
     if not all_flights:
-        return [{"error": f"No flights found for {origin}→{destination} in {departure_month}. Try different dates."}]
+        return [{"error": f"No flights found for {origin}→{destination} in {departure_month}. Try different dates or use web search."}]
 
     # Step 5: Score and return best + cheapest
     all_flights.sort(key=lambda f: f.get("_score", 999999))

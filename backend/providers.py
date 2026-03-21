@@ -548,7 +548,8 @@ def _gemini_search_tool() -> list[genai_types.Tool]:
 
 async def _stream_google_with_key(
     model: str, gemini_contents: list, config: genai_types.GenerateContentConfig, api_key: str,
-    enable_search: bool = False,
+    enable_search: bool = False, has_tool_keywords: bool = False,
+    func_tools_for_later: list | None = None,
 ) -> AsyncGenerator[str | dict, None]:
     """Attempt streaming with a single key, with exponential backoff for transient 429s."""
     client = genai.Client(api_key=api_key)
@@ -559,6 +560,8 @@ async def _stream_google_with_key(
     total_output = 0
     used_function_calling = False
     is_first_round = True
+    tool_retry_done = False
+    switched_to_function_calling = False
     for _round in range(max_tool_rounds + 1):
         for attempt in range(max_retries):
             try:
@@ -593,9 +596,22 @@ async def _stream_google_with_key(
                     total_input += usage_data["input_tokens"]
                     total_output += usage_data["output_tokens"]
 
-                # If no function calls, done or switch to google_search
+                # If no function calls, done or switch tools
                 if not function_calls:
                     if not used_function_calling and enable_search:
+                        if func_tools_for_later and not switched_to_function_calling:
+                            # google_search phase done → switch to function_calling
+                            # (flight search: web search verified airport codes, now call tool)
+                            config.tools = func_tools_for_later
+                            switched_to_function_calling = True
+                            is_first_round = False
+                            enable_search = False
+                            break  # Retry with function_calling tools
+                        if has_tool_keywords and not tool_retry_done:
+                            # Tool keywords detected but model didn't call tools — retry once
+                            tool_retry_done = True
+                            is_first_round = False
+                            break  # Retry with same function_calling tools
                         # No tool use at all → discard buffered text, switch to google_search
                         config.tools = _gemini_search_tool()
                         enable_search = False
@@ -680,19 +696,33 @@ async def stream_google(
     if system_prompt:
         config.system_instruction = system_prompt
     enable_search = False
+    has_flight = False
+    func_tools = None
     if not disable_tools:
         if web_search_only:
-            # Only Google Search, no custom tools (e.g. debate mode)
             config.tools = _gemini_search_tool()
         else:
-            # Start with function calling tools only; switch to google_search after
-            # Gemini API cannot combine google_search and function_calling
+            msg_dicts = []
+            for c in gemini_contents:
+                if hasattr(c, "role") and hasattr(c, "parts"):
+                    text = " ".join(getattr(p, "text", "") or "" for p in c.parts if hasattr(p, "text"))
+                    msg_dicts.append({"role": c.role, "content": text})
+            active_tools = _filter_tools_by_message(msg_dicts)
+            has_flight = "flight_search" in active_tools
             func_tools = _gemini_function_tools(gemini_contents)
-            if func_tools:
+
+            if has_flight and func_tools:
+                # Flight search: start with google_search (verify airport codes),
+                # then switch to function_calling
+                config.tools = _gemini_search_tool()
+                enable_search = True
+            elif func_tools:
                 config.tools = func_tools
-                enable_search = True  # Allow switching to google_search after function calling
+                enable_search = True
             else:
                 config.tools = _gemini_search_tool()
+
+    has_tool_keywords = enable_search
 
     # Build key chain: user key (if provided) → free pool keys → fallback (paid) key
     keys_to_try: list[tuple[str, str]] = []  # (key, label)
@@ -712,7 +742,7 @@ async def stream_google(
     for key, label in keys_to_try:
         try:
             logger.info("Gemini: trying key [%s] for model %s", label, model)
-            async for chunk in _stream_google_with_key(model, gemini_contents, config, key, enable_search=enable_search):
+            async for chunk in _stream_google_with_key(model, gemini_contents, config, key, enable_search=enable_search, has_tool_keywords=has_tool_keywords, func_tools_for_later=func_tools if has_flight else None):
                 yield chunk
             return  # Success
         except (ProviderSpendLimitError, ProviderRateLimitError) as e:

@@ -149,25 +149,30 @@ if (typeof window !== "undefined") {
 
 export function getApiKeyForProvider(provider: Provider): string | null {
   if (typeof window === "undefined") return null;
-  // Return from cache (sync)
   const storageKey = STORAGE_KEYS[provider];
+  // Return from cache first
   if (storageKey in cache) return cache[storageKey];
-  // Fallback: read raw (before cache is loaded)
+  // Sync read from localStorage
   const raw = localStorage.getItem(storageKey);
   if (!raw) return null;
   if (!isEncrypted(raw)) return raw;
-  return null; // encrypted but cache not ready yet
+  // Encrypted key exists but cache not loaded — try sync fallback key
+  const syncKey = localStorage.getItem(storageKey + "_sync");
+  if (syncKey) { cache[storageKey] = syncKey; return syncKey; }
+  return null;
 }
 
 export async function setApiKeyForProvider(provider: Provider, key: string): Promise<void> {
   const storageKey = STORAGE_KEYS[provider];
   cache[storageKey] = key;
+  // Save sync-readable copy for immediate access after page reload
+  localStorage.setItem(storageKey + "_sync", key);
   try {
     const encrypted = await encryptValue(key);
     localStorage.setItem(storageKey, encrypted);
   } catch (err) {
-    console.warn("[apiKeyStore] Encryption failed, not saving key:", err);
-    // Do NOT fall back to plaintext — key stays in memory cache only
+    console.warn("[apiKeyStore] Encryption failed, saving plaintext:", err);
+    localStorage.setItem(storageKey, key);
   }
 }
 
@@ -175,6 +180,7 @@ export function clearApiKeyForProvider(provider: Provider): void {
   const storageKey = STORAGE_KEYS[provider];
   cache[storageKey] = null;
   localStorage.removeItem(storageKey);
+  localStorage.removeItem(storageKey + "_sync");
 }
 
 export function hasAnyApiKey(): boolean {

@@ -89,9 +89,9 @@ MODEL_REGISTRY: dict[str, dict] = {
     "claude-sonnet-4-6":          {"provider": "anthropic", "label": "Claude Sonnet 4.6",  "supports_images": True,  "supports_web_search": True,  "input_price": 3.0,   "output_price": 15.0},
     "claude-opus-4-6":            {"provider": "anthropic", "label": "Claude Opus 4.6",    "supports_images": True,  "supports_web_search": True,  "input_price": 15.0,  "output_price": 75.0},
     # OpenAI (cheapest first)
-    "gpt-4o-mini":                {"provider": "openai",    "label": "GPT-4o mini",    "supports_images": True,  "supports_web_search": False, "input_price": 0.15,  "output_price": 0.60},
+    "gpt-4o-mini":                {"provider": "openai",    "label": "GPT-4o mini",    "supports_images": True,  "supports_web_search": True,  "input_price": 0.15,  "output_price": 0.60},
     "o3-mini":                    {"provider": "openai",    "label": "o3-mini",         "supports_images": False, "supports_web_search": False, "input_price": 1.10,  "output_price": 4.40},
-    "gpt-4o":                     {"provider": "openai",    "label": "GPT-4o",         "supports_images": True,  "supports_web_search": False, "input_price": 2.50,  "output_price": 10.0},
+    "gpt-4o":                     {"provider": "openai",    "label": "GPT-4o",         "supports_images": True,  "supports_web_search": True,  "input_price": 2.50,  "output_price": 10.0},
     # Google (cheapest first)
     "gemini-2.5-flash-lite":      {"provider": "google",    "label": "Gemini 2.5 Flash Lite", "supports_images": True, "supports_web_search": True,  "input_price": 0.075, "output_price": 0.30},
     "gemini-2.5-flash":           {"provider": "google",    "label": "Gemini 2.5 Flash", "supports_images": True, "supports_web_search": True,  "input_price": 0.15,  "output_price": 0.60},
@@ -400,10 +400,19 @@ async def stream_openai(
     total_input = 0
     total_output = 0
 
+    # Web search: use search-preview model when no custom tools and web search is supported
+    # Search-preview models don't support image inputs
+    has_web_search = MODEL_REGISTRY.get(model, {}).get("supports_web_search", False)
+    has_images = any(isinstance(m.get("content"), list) and any(b.get("type") == "image_url" for b in m["content"] if isinstance(b, dict)) for m in oai_messages)
+    search_model_map = {"gpt-4o": "gpt-4o-search-preview", "gpt-4o-mini": "gpt-4o-mini-search-preview"}
+    use_web_search = has_web_search and not tools and not disable_tools and model in search_model_map and not has_images
+
     try:
         for _round in range(max_tool_rounds + 1):
+            # Use search-preview model when web search is active and no custom tools
+            active_model = search_model_map[model] if use_web_search and not tools else model
             create_kwargs: dict = dict(
-                model=model,
+                model=active_model,
                 messages=oai_messages,
                 stream=True,
                 stream_options={"include_usage": True},
@@ -411,6 +420,8 @@ async def stream_openai(
             )
             if tools:
                 create_kwargs["tools"] = tools
+            if use_web_search and not tools:
+                create_kwargs["web_search_options"] = {"search_context_size": "medium"}
 
             stream = await client.chat.completions.create(**create_kwargs)
 
@@ -715,8 +726,19 @@ async def stream_google(
     enable_search = False
     has_flight = False
     func_tools = None
+    # Detect if message contains images (google_search grounding is incompatible with images)
+    has_images = any(
+        hasattr(p, "inline_data") and p.inline_data
+        for c in gemini_contents if hasattr(c, "parts")
+        for p in c.parts
+    )
     if not disable_tools:
-        if web_search_only:
+        if has_images:
+            # google_search grounding is incompatible with image inputs.
+            # 2-step approach: first recognize image (no tools), then search with text.
+            # Image recognition happens in the streaming loop below.
+            pass
+        elif web_search_only:
             config.tools = _gemini_search_tool()
         else:
             msg_dicts = []
@@ -729,8 +751,6 @@ async def stream_google(
             func_tools = _gemini_function_tools(gemini_contents)
 
             if has_flight and func_tools:
-                # Flight search: start with google_search (verify airport codes),
-                # then switch to function_calling
                 config.tools = _gemini_search_tool()
                 enable_search = True
             elif func_tools:
@@ -759,6 +779,53 @@ async def stream_google(
     for key, label in keys_to_try:
         try:
             logger.info("Gemini: trying key [%s] for model %s", label, model)
+
+            # 2-step image handling: recognize image first, then search with text
+            if has_images and not disable_tools:
+                client = genai.Client(api_key=key)
+                # Step 1: Image recognition (no tools, with image)
+                img_config = genai_types.GenerateContentConfig(max_output_tokens=1024)
+                if system_prompt:
+                    img_config.system_instruction = "Describe what you see in the image concisely in the same language as the user's message."
+                img_response = await client.aio.models.generate_content(
+                    model=model, contents=gemini_contents, config=img_config,
+                )
+                image_description = img_response.text or ""
+                logger.info("Gemini image recognition: %s", image_description[:100])
+
+                # Step 2: Build text-only query with image description + user question
+                last_user_text = ""
+                for c in reversed(gemini_contents):
+                    if hasattr(c, "role") and c.role == "user":
+                        for p in c.parts:
+                            if hasattr(p, "text") and p.text:
+                                last_user_text = p.text
+                                break
+                        break
+
+                combined_query = f"[画像の内容: {image_description}]\n\nユーザーの質問: {last_user_text}"
+                text_contents = [genai_types.Content(role="user", parts=[genai_types.Part.from_text(text=combined_query)])]
+                text_config = genai_types.GenerateContentConfig(max_output_tokens=4096)
+                if system_prompt:
+                    text_config.system_instruction = system_prompt
+                text_config.tools = _gemini_search_tool()
+
+                # Stream the search-enhanced response
+                stream = await client.aio.models.generate_content_stream(
+                    model=model, contents=text_contents, config=text_config,
+                )
+                total_input = 0
+                total_output = 0
+                async for chunk in stream:
+                    if chunk.text:
+                        yield chunk.text
+                    if hasattr(chunk, "usage_metadata") and chunk.usage_metadata:
+                        um = chunk.usage_metadata
+                        total_input += getattr(um, "prompt_token_count", 0) or 0
+                        total_output += getattr(um, "candidates_token_count", 0) or 0
+                yield {"input_tokens": total_input, "output_tokens": total_output}
+                return  # Success
+
             async for chunk in _stream_google_with_key(model, gemini_contents, config, key, enable_search=enable_search, has_tool_keywords=has_tool_keywords, func_tools_for_later=func_tools if has_flight else None):
                 yield chunk
             return  # Success

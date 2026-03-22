@@ -455,11 +455,37 @@ async def stream_openai(
             yield {"input_tokens": total_input, "output_tokens": total_output}
             return
 
+        # For flight search phase, use airport-specific system prompt
+        airport_search_messages = None
+        if flight_phase == "search":
+            from datetime import date as _date
+            _today = _date.today()
+            airport_prompt = (
+                f"今日は{_today.isoformat()}です。年は{_today.year}年です。"
+                "あなたはフライト検索アシスタントです。ユーザーのメッセージに含まれる目的地の都市について、"
+                "その都市にある全ての空港名とIATAコードをWeb検索で調べてください。"
+                "もし空港が2つ以上ある場合は、全ての空港名とコードを一覧にして「どちらの空港をご希望ですか？」と質問してください。"
+                "空港が1つだけの場合は、その空港名とコードを回答してください。"
+                "注意: カンボジアのプノンペンはPNHではなくKTI、シェムリアップはREPではなくSAIです。"
+                "東京(NRT/HND)と大阪(KIX/ITM)の場合は質問せず、両方のコードを回答してください。"
+            )
+            # Extract last user message
+            last_user_msg = ""
+            for m in reversed(oai_messages):
+                if m.get("role") == "user":
+                    c = m.get("content", "")
+                    last_user_msg = c if isinstance(c, str) else str(c)
+                    break
+            airport_search_messages = [
+                {"role": "system", "content": airport_prompt},
+                {"role": "user", "content": last_user_msg},
+            ]
+
         for _round in range(max_tool_rounds + 1):
             active_model = search_model_map.get(model, model) if use_web_search else model
             create_kwargs: dict = dict(
                 model=active_model,
-                messages=oai_messages,
+                messages=airport_search_messages if (flight_phase == "search" and use_web_search and airport_search_messages) else oai_messages,
                 stream=True,
                 stream_options={"include_usage": True},
                 **{token_param: 4096},
@@ -474,6 +500,7 @@ async def stream_openai(
             usage_data = None
             tool_calls_acc: dict[int, dict] = {}  # index -> {id, name, arguments}
             finish_reason = None
+            streamed_text = []  # Accumulate text for question detection
 
             async for chunk in stream:
                 if chunk.usage:
@@ -484,6 +511,8 @@ async def stream_openai(
 
                 if delta and delta.content:
                     yield delta.content
+                    if flight_phase == "search":
+                        streamed_text.append(delta.content)
 
                 # Accumulate tool call chunks
                 if delta and delta.tool_calls:
@@ -504,10 +533,14 @@ async def stream_openai(
 
             # Check if model wants to call tools
             if finish_reason != "tool_calls" or not tool_calls_acc:
-                # Flight search 2-step: switch from web_search to function_calling
+                # Flight search 2-step: check if model asked about airports
                 if flight_phase == "search":
+                    search_response = "".join(streamed_text)
+                    if "？" in search_response or "?" in search_response:
+                        break  # Model asked about airports → stop, wait for user
                     flight_phase = "tools"
                     use_web_search = False
+                    airport_search_messages = None  # Use original messages for tools phase
                     continue  # Next round with function_calling tools
                 break
 

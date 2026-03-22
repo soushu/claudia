@@ -819,7 +819,10 @@ async def stream_google(
                     if m.get("role") == "user":
                         last_text = m.get("content", "")
                         break
+                from datetime import date as _date
+                _today = _date.today()
                 config.system_instruction = (
+                    f"今日は{_today.isoformat()}です。年は{_today.year}年です。"
                     "あなたはフライト検索アシスタントです。ユーザーのメッセージに含まれる目的地の都市について、"
                     "その都市にある全ての空港名とIATAコードをWeb検索で調べてください。"
                     "もし空港が2つ以上ある場合は、全ての空港名とコードを一覧にして「どちらの空港をご希望ですか？」と質問してください。"

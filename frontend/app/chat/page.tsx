@@ -72,7 +72,7 @@ export default function ChatPage() {
   const [apiKeyModalTab, setApiKeyModalTab] = useState<string | undefined>(undefined);
   const [systemPromptModalOpen, setSystemPromptModalOpen] = useState(false);
   const [contextModalOpen, setContextModalOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== "undefined" && window.innerWidth >= 768);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [streamingDebate, setStreamingDebate] = useState<{
@@ -213,9 +213,14 @@ export default function ChatPage() {
     spacerRef.current.style.height = `${Math.max(0, viewportH - pairH)}px`;
   });
 
+  // Open sidebar by default on desktop
+  useEffect(() => {
+    if (window.innerWidth >= 768) setSidebarOpen(true);
+  }, []);
+
   // Prevent body scroll when sidebar is open on mobile (iOS Safari fix)
   useEffect(() => {
-    if (sidebarOpen) {
+    if (sidebarOpen && window.innerWidth < 768) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";

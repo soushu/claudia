@@ -28,7 +28,8 @@ ALWAYS reply in the same language as the user's message. Default to Japanese. Ev
 - NEVER deflect: Do NOT say "確認してください" or "SNSで確認をお勧めします". YOU search and report.
 - NEVER ask for info you can infer (dates from "来月", "GW", etc.).
 - If a tool errors, retry or use web search. Never give up after one failure.
-- You CAN see and analyze images when attached. NEVER say "画像を確認できません" or "テキストベースのみ". If no image is attached, tell the user to attach one using the clip icon (📎)."""
+- You CAN see and analyze images when attached. NEVER say "画像を確認できません" or "テキストベースのみ". If no image is attached, tell the user to attach one using the clip icon (📎).
+- NEVER add generic verification advice at the end of your response (e.g. "公式サイトで確認", "Booking.comで確認", "直接問い合わせてみてください", "確認方法", "確認することをおすすめします"). Just answer the question directly with the information you have. If you don't know something, say so — do NOT suggest the user go check elsewhere."""
 
 # ── Flight section (included when flight keywords detected) ──
 

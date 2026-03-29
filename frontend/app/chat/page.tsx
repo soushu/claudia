@@ -157,6 +157,8 @@ export default function ChatPage() {
     if (shouldScrollToQuestion.current && lastPairRef.current) {
       scrollToLastQuestion();
       shouldScrollToQuestion.current = false;
+      // Re-scroll after previous QAPairBlock collapse animation completes (300ms CSS transition)
+      setTimeout(scrollToLastQuestion, 350);
     }
   });
 
@@ -668,7 +670,7 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v57.2
+          DEV v57.3
         </div>
       )}
 

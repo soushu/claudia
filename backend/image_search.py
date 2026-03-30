@@ -48,10 +48,19 @@ async def search_images(query: str, max_results: int = 3) -> list[dict]:
         return cached
 
     try:
-        from duckduckgo_search import DDGS
+        # Try new package name first, fall back to old name
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS
 
-        with DDGS() as ddgs:
-            results = list(ddgs.images(keywords=query, max_results=max_results, safesearch="moderate"))
+        import asyncio
+        # Run sync DDGS in thread to avoid blocking event loop
+        def _search():
+            with DDGS() as ddgs:
+                return list(ddgs.images(keywords=query, max_results=max_results, safesearch="moderate"))
+
+        results = await asyncio.to_thread(_search)
 
         if not results:
             return [{"error": f"No images found for '{query}'"}]
@@ -70,8 +79,12 @@ async def search_images(query: str, max_results: int = 3) -> list[dict]:
         return images
 
     except ImportError:
-        logger.error("duckduckgo-search package not installed")
-        return [{"error": "Image search is not available (duckduckgo-search not installed)"}]
+        logger.error("ddgs/duckduckgo-search package not installed")
+        return [{"error": "Image search is not available (ddgs package not installed). Install with: pip install ddgs"}]
     except Exception as e:
+        err_str = repr(e).lower()
+        if "ratelimit" in err_str or "429" in err_str or "403" in err_str:
+            logger.warning("Image search rate limited: %s", query)
+            return [{"error": "Image search is temporarily rate limited. Please try again in a moment."}]
         logger.error("Image search error: %s", repr(e))
         return [{"error": f"Image search failed: {repr(e)}"}]

@@ -18,7 +18,9 @@ IMAGE_SEARCH_TOOL = {
         "Search for images on the web and return image URLs. "
         "Use this when the user asks for images, screenshots, visual examples, or "
         "says '画像を見せて', '画像を探して', 'スクリーンショット', '写真', '画像検索'. "
-        "Returns image URLs that you should embed in your response using markdown: ![description](url)"
+        "IMPORTANT: After receiving the results, you MUST include each image in your text response "
+        "using markdown image syntax: ![image title](image_url) — one per line. "
+        "Also add a brief description of each image in Japanese."
     ),
     "input_schema": {
         "type": "object",

@@ -676,6 +676,11 @@ async def _stream_google_with_key(
     is_first_round = True
     tool_retry_done = False
     switched_to_function_calling = False
+    # Buffer text until we commit to a tool path (function_calling confirmed or google_search final).
+    # This prevents intermediate "確認してください" responses from leaking when the model
+    # has function_calling tools but doesn't actually call them (e.g. "ベトジェットの上級会員" matches
+    # flight keywords but isn't a flight search request).
+    may_switch_tools = enable_search or has_tool_keywords
     for _round in range(max_tool_rounds + 1):
         for attempt in range(max_retries):
             try:
@@ -687,8 +692,8 @@ async def _stream_google_with_key(
                 buffered_text = []
                 async for chunk in stream:
                     if chunk.text:
-                        if is_first_round and enable_search:
-                            # Buffer text on first round — may discard if switching to google_search
+                        if may_switch_tools and not used_function_calling:
+                            # Buffer text until we know the final tool path
                             buffered_text.append(chunk.text)
                         else:
                             yield chunk.text
@@ -728,16 +733,19 @@ async def _stream_google_with_key(
                             switched_to_function_calling = True
                             is_first_round = False
                             enable_search = False
+                            buffered_text.clear()  # Discard airport search text
                             break  # Retry with function_calling tools
                         if has_tool_keywords and not tool_retry_done:
                             # Tool keywords detected but model didn't call tools — retry once
                             tool_retry_done = True
                             is_first_round = False
+                            buffered_text.clear()  # Discard intermediate text
                             break  # Retry with same function_calling tools
                         # No tool use at all → discard buffered text, switch to google_search
                         config.tools = _gemini_search_tool()
                         enable_search = False
                         is_first_round = False
+                        may_switch_tools = False  # Committed to google_search — stream directly
                         break  # Retry with google_search
                     # Done — flush any buffered text
                     for t in buffered_text:
@@ -749,6 +757,7 @@ async def _stream_google_with_key(
                 for t in buffered_text:
                     yield t
                 is_first_round = False
+                may_switch_tools = False  # Committed to function_calling — stream directly
 
                 # Execute function calls and build responses
                 used_function_calling = True

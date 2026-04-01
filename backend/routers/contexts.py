@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -19,10 +19,24 @@ class ContextCreate(BaseModel):
     content: str
     category: str = "general"
 
+    @field_validator("content")
+    @classmethod
+    def check_length(cls, v: str) -> str:
+        if len(v) > 1000:
+            raise ValueError("コンテキストは1000文字以内にしてください。")
+        return v
+
 
 class ContextUpdate(BaseModel):
     content: str | None = None
     category: str | None = None
+
+    @field_validator("content")
+    @classmethod
+    def check_length(cls, v: str | None) -> str | None:
+        if v is not None and len(v) > 1000:
+            raise ValueError("コンテキストは1000文字以内にしてください。")
+        return v
 
 
 class ContextResponse(BaseModel):
@@ -72,6 +86,11 @@ def create_context(
     current_user_id: uuid.UUID = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
+    MAX_CONTEXTS_PER_USER = 200
+    count = db.query(Context).filter(Context.user_id == current_user_id).count()
+    if count >= MAX_CONTEXTS_PER_USER:
+        raise HTTPException(status_code=400, detail=f"コンテキストの上限（{MAX_CONTEXTS_PER_USER}件）に達しています。不要なものを削除してください。")
+
     ctx = Context(
         user_id=current_user_id,
         content=req.content.strip(),

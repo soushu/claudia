@@ -45,6 +45,13 @@ class DebateRequest(BaseModel):
     model_b: str = "gpt-4o"
     thinking: bool = False
 
+    @field_validator("content")
+    @classmethod
+    def check_content_length(cls, v: str) -> str:
+        if len(v) > 50000:
+            raise ValueError("メッセージは50000文字以内にしてください。")
+        return v
+
     @field_validator("images")
     @classmethod
     def check_image_count(cls, v: list[ImageAttachment]) -> list[ImageAttachment]:
@@ -116,7 +123,7 @@ async def stream_debate(
             .order_by(Message.created_at)
             .all()
         )
-        messages = [{"role": m.role, "content": m.content} for m in history]
+        messages = [{"role": m.role, "content": m.content or " "} for m in history]
 
         # Replace last user message with multimodal content if images attached
         if images and messages and messages[-1]["role"] == "user":
@@ -151,7 +158,7 @@ async def stream_debate(
         async def _stream_step(mdl, msgs, key):
             nonlocal total_input_tokens, total_output_tokens, total_cost
             fb = google_fallback if get_provider(mdl) == "google" else None
-            async for chunk in stream_provider(mdl, msgs, key, system_prompt, thinking=thinking, google_fallback=fb, disable_tools=True):
+            async for chunk in stream_provider(mdl, msgs, key, system_prompt, thinking=thinking, google_fallback=fb, web_search_only=True):
                 if isinstance(chunk, dict):
                     total_input_tokens += chunk.get("input_tokens", 0)
                     total_output_tokens += chunk.get("output_tokens", 0)
@@ -347,7 +354,11 @@ async def debate(
         context_lines = [f"- {c.content}" for c in active_contexts]
         context_block = "<context_memory>\nHere are things you know about the user:\n" + "\n".join(context_lines) + "\n</context_memory>"
 
-    system_prompt = build_system_prompt(user_prompt, context_block)
+    has_web_search = (
+        MODEL_REGISTRY.get(model_a, {}).get("supports_web_search", False)
+        or MODEL_REGISTRY.get(model_b, {}).get("supports_web_search", False)
+    )
+    system_prompt = build_system_prompt(user_prompt, context_block, has_web_search=has_web_search, user_message=req.content)
 
     return StreamingResponse(
         stream_debate(

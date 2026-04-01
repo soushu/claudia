@@ -26,7 +26,7 @@ jobs:
       - name: Extract version and change summary
         id: info
         run: |
-          VERSION=$(grep -oP 'DEV v[\d.]+' frontend/app/chat/page.tsx || echo "DEV v?")
+          VERSION=$(grep -oE 'DEV v[0-9.]+' frontend/app/chat/page.tsx || echo "DEV v?")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           # For merge commits: get feature branch commit messages via HEAD^1..HEAD^2
           CHANGES=""
@@ -35,7 +35,8 @@ jobs:
           fi
           # Fallback: use the commit message itself (for non-merge pushes)
           if [ -z "$CHANGES" ]; then
-            CHANGES=$(echo '${{ github.event.head_commit.message }}' | head -1)
+            CHANGES="${{ github.event.head_commit.message }}"
+            CHANGES=$(echo "$CHANGES" | head -1)
           fi
           echo "changes=$CHANGES" >> "$GITHUB_OUTPUT"
 
@@ -50,15 +51,15 @@ jobs:
 
       - name: Deploy to staging
         run: |
-          gcloud compute ssh yutookiguchi@bitpoint-bot \
-            --zone=us-west1-b \
+          gcloud compute ssh ${{ secrets.GCE_SSH_USER }}@${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_ZONE }} \
             --tunnel-through-iap \
-            --command="DEPLOY_USER=yutookiguchi bash /home/yutookiguchi/claudia-staging/deploy/deploy-staging.sh"
+            --command="DEPLOY_USER=${{ secrets.GCE_SSH_USER }} bash /home/${{ secrets.GCE_SSH_USER }}/${{ secrets.GCE_DEPLOY_DIR_STAGING }}/deploy/deploy-staging.sh"
 
       - name: Health check
         run: |
-          gcloud compute ssh yutookiguchi@bitpoint-bot \
-            --zone=us-west1-b \
+          gcloud compute ssh ${{ secrets.GCE_SSH_USER }}@${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_ZONE }} \
             --tunnel-through-iap \
             --command="curl -sf http://127.0.0.1:8002/health"
 
@@ -74,6 +75,8 @@ jobs:
           fi
           VERSION="${{ steps.info.outputs.version }}"
           CHANGES="${{ steps.info.outputs.changes }}"
+          # Sanitize: remove double quotes to prevent JSON breakage
+          CHANGES=$(echo "$CHANGES" | tr '"' "'")
           curl -sX POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
             -d "{\"text\": \"${EMOJI} *Mazelan ステージング* デプロイ${STATUS} [${VERSION}]\n>${CHANGES}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"

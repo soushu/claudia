@@ -70,6 +70,14 @@ async def extract_contexts(
             .all()
         )
         existing_contents = [c.content for c in existing]
+
+        # Skip extraction if at limit
+        MAX_CONTEXTS_PER_USER = 200
+        total_count = db.query(Context).filter(Context.user_id == user_id).count()
+        if total_count >= MAX_CONTEXTS_PER_USER:
+            logger.info("Context limit reached (%d/%d) for user %s, skipping extraction", total_count, MAX_CONTEXTS_PER_USER, user_id)
+            return
+
         existing_text = "\n".join(f"- {c.content} [{c.category}]" for c in existing) or "(none)"
 
         # Truncate inputs for cost control

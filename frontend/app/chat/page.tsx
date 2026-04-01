@@ -8,7 +8,8 @@ import QAPairBlock from "@/components/QAPairBlock";
 import ApiKeyModal from "@/components/ApiKeyModal";
 import SystemPromptModal from "@/components/SystemPromptModal";
 import ContextModal from "@/components/ContextModal";
-import { createSession, listSessions, getMessages, deleteSession, updateSession, toggleSessionStar, streamChat, streamDebate } from "@/lib/api";
+import { createSession, listSessions, getMessages, deleteSession, updateSession, toggleSessionStar, streamChat, streamDebate, forkSession } from "@/lib/api";
+import { enqueue, processQueue } from "@/lib/offlineQueue";
 import { getApiKeyForProvider, getGoogleFallbackKey } from "@/lib/apiKeyStore";
 import type { Session, Message, QAPair, ImageAttachment, ModelId, DebateStepId } from "@/lib/types";
 import { getProviderForModel, parseDebateContent, parseUsageMarker } from "@/lib/types";
@@ -85,6 +86,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (status !== "authenticated") return;
+    // Clear cache if user changed (e.g. logged in as different account)
+    const userId = (authSession?.user as { id?: string })?.id || "";
+    const cachedUserId = localStorage.getItem("mazelan_user_id") || "";
+    if (userId && cachedUserId && userId !== cachedUserId) {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("mazelan_sessions") || k.startsWith("mazelan_msgs_") || k.startsWith("mazelan_active_session"));
+      keys.forEach(k => localStorage.removeItem(k));
+      setSessions([]);
+      setActiveId(null);
+      setMessages([]);
+    }
+    if (userId) localStorage.setItem("mazelan_user_id", userId);
     // If we have cached sessions, show them immediately and skip loading state
     const hasCached = sessions.length > 0;
     if (!hasCached) setLoadingSessions(true);
@@ -124,19 +136,36 @@ export default function ChatPage() {
   const shouldScrollToQuestion = useRef(false);
   // Track if we need to re-scroll when first streaming chunk arrives (mobile keyboard dismiss fix)
   const needsStreamingScroll = useRef(false);
+  // Ref to track streaming state for visibility change handler
+  const streamingRef = useRef(false);
+  useEffect(() => { streamingRef.current = streaming; }, [streaming]);
+
+  // Scroll the last question into view with padding so images are not cut off
+  const scrollToLastQuestion = () => {
+    if (!lastPairRef.current || !scrollContainerRef.current) return;
+    const container = scrollContainerRef.current;
+    const el = lastPairRef.current;
+    // Use getBoundingClientRect for reliable position regardless of nesting
+    const containerRect = container.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const scrollOffset = elRect.top - containerRect.top + container.scrollTop;
+    container.scrollTop = Math.max(0, scrollOffset - 8); // 8px padding above
+  };
 
   // When user sends a message, scroll so the question appears at the top of the viewport
   useLayoutEffect(() => {
     if (shouldScrollToQuestion.current && lastPairRef.current) {
-      lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+      scrollToLastQuestion();
       shouldScrollToQuestion.current = false;
+      // Re-scroll after previous QAPairBlock collapse animation completes (300ms CSS transition)
+      setTimeout(scrollToLastQuestion, 350);
     }
   });
 
   // Re-scroll when first streaming chunk arrives (keyboard may have closed, changing viewport)
   useLayoutEffect(() => {
     if (needsStreamingScroll.current && streamingText && lastPairRef.current) {
-      lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+      scrollToLastQuestion();
       needsStreamingScroll.current = false;
     }
   }, [streamingText]);
@@ -147,11 +176,47 @@ export default function ChatPage() {
     if (!vv) return;
     function handleResize() {
       if (needsStreamingScroll.current && lastPairRef.current) {
-        lastPairRef.current.scrollIntoView({ behavior: "instant", block: "start" });
+        scrollToLastQuestion();
       }
     }
     vv.addEventListener("resize", handleResize);
     return () => vv.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Foreground resume: reload messages from DB if streaming was interrupted by background
+  const activeIdRef = useRef(activeId);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible" && streamingRef.current && activeIdRef.current) {
+        // App came back to foreground while streaming — reload from DB
+        const sid = activeIdRef.current;
+        getMessages(sid).then((msgs) => {
+          if (msgs.length > 0) {
+            setMessages(msgs);
+            try {
+              const light = msgs.map((m: Message) => ({ ...m, images: undefined }));
+              localStorage.setItem(`mazelan_msgs_${sid}`, JSON.stringify(light));
+            } catch {}
+          }
+          setStreaming(false);
+          setStreamingText("");
+          setStreamingModel(undefined);
+          setStreamingDebate(null);
+          setToolStatus(null);
+        }).catch(() => {});
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  // Process offline queue on mount and when connectivity is restored
+  useEffect(() => {
+    if (navigator.onLine) processQueue();
+    const handleOnline = () => processQueue();
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
   }, []);
 
   // Dynamic spacer: use layoutEffect to set height before paint, avoiding flicker
@@ -162,9 +227,14 @@ export default function ChatPage() {
     spacerRef.current.style.height = `${Math.max(0, viewportH - pairH)}px`;
   });
 
+  // Open sidebar by default on desktop
+  useEffect(() => {
+    if (window.innerWidth >= 768) setSidebarOpen(true);
+  }, []);
+
   // Prevent body scroll when sidebar is open on mobile (iOS Safari fix)
   useEffect(() => {
-    if (sidebarOpen) {
+    if (sidebarOpen && window.innerWidth < 768) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -221,19 +291,28 @@ export default function ChatPage() {
   }
 
   async function handleDelete(id: string) {
-    await deleteSession(id);
     setSessions((prev) => prev.filter((s) => s.id !== id));
     if (activeId === id) handleNew();
+    try {
+      if (!navigator.onLine) throw new Error("offline");
+      await deleteSession(id);
+    } catch {
+      enqueue({ type: "delete", sessionId: id });
+    }
   }
 
   async function handleRename(id: string, newTitle: string) {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, title: newTitle } : s))
+    );
     try {
+      if (!navigator.onLine) throw new Error("offline");
       const updated = await updateSession(id, newTitle);
       setSessions((prev) =>
         prev.map((s) => (s.id === id ? { ...s, title: updated.title } : s))
       );
-    } catch (err) {
-      console.error(err);
+    } catch {
+      enqueue({ type: "rename", sessionId: id, title: newTitle });
     }
   }
 
@@ -256,41 +335,98 @@ export default function ChatPage() {
   }, [sessions, activeId, messages]);
 
   async function handleToggleStar(id: string) {
+    setSessions((prev) => {
+      const toggled = prev.map((s) => (s.id === id ? { ...s, is_starred: !s.is_starred } : s));
+      const target = toggled.find((s) => s.id === id)!;
+      const rest = toggled.filter((s) => s.id !== id);
+      const starred = rest.filter((s) => s.is_starred);
+      const unstarred = rest.filter((s) => !s.is_starred);
+      if (target.is_starred) {
+        return [target, ...starred, ...unstarred];
+      } else {
+        return [...starred, target, ...unstarred];
+      }
+    });
     try {
-      const updated = await toggleSessionStar(id);
-      setSessions((prev) => {
-        const toggled = prev.map((s) => (s.id === id ? { ...s, is_starred: updated.is_starred } : s));
-        const target = toggled.find((s) => s.id === id)!;
-        const rest = toggled.filter((s) => s.id !== id);
-        const starred = rest.filter((s) => s.is_starred);
-        const unstarred = rest.filter((s) => !s.is_starred);
-        if (target.is_starred) {
-          return [target, ...starred, ...unstarred];
-        } else {
-          return [...starred, target, ...unstarred];
-        }
-      });
-    } catch (err) {
-      console.error(err);
+      if (!navigator.onLine) throw new Error("offline");
+      await toggleSessionStar(id);
+    } catch {
+      enqueue({ type: "star", sessionId: id });
     }
   }
 
-  async function fileToBase64(file: File): Promise<ImageAttachment> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // data:image/png;base64,xxxx -> extract base64 part
-        const data = result.split(",")[1];
-        resolve({
-          media_type: file.type,
-          data,
-          preview_url: URL.createObjectURL(file),
-        });
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
+  async function compressImage(file: File): Promise<{ data: string; media_type: string }> {
+    const MAX_BASE64 = 8 * 1024 * 1024; // 8MB (余裕を持って10MBより小さく)
+    const MAX_DIMENSION = 2048;
+
+    // まずそのまま読み込む
+    const original = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(file);
     });
+
+    const originalBase64 = original.split(",")[1];
+    // 小さければそのまま返す
+    if (originalBase64.length <= MAX_BASE64 && file.type !== "image/png") {
+      return { data: originalBase64, media_type: file.type };
+    }
+
+    // Canvas でリサイズ + JPEG圧縮
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = original;
+    });
+
+    let { width, height } = img;
+    if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+      const scale = MAX_DIMENSION / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // PNGでサイズ内ならPNGのまま、超えたらJPEG圧縮
+    if (file.type === "image/png") {
+      const pngData = canvas.toDataURL("image/png").split(",")[1];
+      if (pngData.length <= MAX_BASE64) {
+        return { data: pngData, media_type: "image/png" };
+      }
+    }
+
+    // JPEG で品質を下げながら試行
+    for (const quality of [0.85, 0.7, 0.5]) {
+      const jpegData = canvas.toDataURL("image/jpeg", quality).split(",")[1];
+      if (jpegData.length <= MAX_BASE64) {
+        return { data: jpegData, media_type: "image/jpeg" };
+      }
+    }
+
+    // 最低品質でも超える場合はさらに縮小
+    const smallCanvas = document.createElement("canvas");
+    smallCanvas.width = Math.round(width * 0.5);
+    smallCanvas.height = Math.round(height * 0.5);
+    const sCtx = smallCanvas.getContext("2d")!;
+    sCtx.drawImage(canvas, 0, 0, smallCanvas.width, smallCanvas.height);
+    const finalData = smallCanvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+    return { data: finalData, media_type: "image/jpeg" };
+  }
+
+  async function fileToBase64(file: File): Promise<ImageAttachment> {
+    const { data, media_type } = await compressImage(file);
+    return {
+      media_type,
+      data,
+      preview_url: URL.createObjectURL(file),
+    };
   }
 
   async function handleSubmit(content: string, imageFiles: File[], model: ModelId, debateMode?: boolean, secondModel?: ModelId, thinking?: boolean) {
@@ -413,7 +549,7 @@ export default function ChatPage() {
           return;
         }
         let thinkingCleared = false;
-        if (thinking) setToolStatus("🧠 考え中...");
+        if (thinking) setToolStatus(t("chat.thinkingStatus"));
         for await (const chunk of streamChat(sessionId, content, images.length > 0 ? images : undefined, apiKey, model, anthropicKey, thinking, getGoogleFallbackKey())) {
           full += chunk;
           // Clear thinking status once first real text arrives
@@ -450,6 +586,12 @@ export default function ChatPage() {
           ...prev,
           { role: "assistant", content: t("chat.errorApiKeyInvalid"), created_at: new Date().toISOString() },
         ]);
+      } else if (err instanceof Error && err.message.startsWith("VALIDATION:")) {
+        const detail = err.message.replace("VALIDATION: ", "");
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `⚠️ ${detail}`, created_at: new Date().toISOString() },
+        ]);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -462,6 +604,21 @@ export default function ChatPage() {
       setStreamingModel(undefined);
       setStreamingDebate(null);
       setToolStatus(null);
+    }
+  }
+
+  async function handleFork(pairIndex: number) {
+    if (!activeId) return;
+    try {
+      const newSession = await forkSession(activeId, pairIndex);
+      // Add new session to list and switch to it
+      setSessions((prev) => [newSession, ...prev]);
+      setActiveId(newSession.id);
+      const msgs = await getMessages(newSession.id);
+      setMessages(msgs);
+      setManualToggles(new Set());
+    } catch (err) {
+      console.error("Fork failed:", err);
     }
   }
 
@@ -513,26 +670,28 @@ export default function ChatPage() {
       {/* DEV badge for staging environment */}
       {process.env.NEXT_PUBLIC_ENV === "staging" && (
         <div className="fixed top-2 right-2 z-50 bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded shadow">
-          DEV v42.62
+          DEV v59.3
         </div>
       )}
 
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile header bar */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border-primary">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-1 text-t-tertiary hover:text-t-secondary transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-          </button>
-          <h1 className="text-base font-semibold text-t-primary truncate">
-            {activeId ? (sessions.find(s => s.id === activeId)?.title ?? t("app.name")) : t("app.name")}
-          </h1>
-        </div>
+        {/* Header bar with sidebar toggle */}
+        {!sidebarOpen && (
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border-primary">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-1 text-t-tertiary hover:text-t-secondary transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            </button>
+            <h1 className="text-base font-semibold text-t-primary truncate md:hidden">
+              {activeId ? (sessions.find(s => s.id === activeId)?.title ?? t("app.name")) : t("app.name")}
+            </h1>
+          </div>
+        )}
 
         {/* Message list */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-6">
@@ -614,6 +773,8 @@ export default function ChatPage() {
                     streamingDebate={isLastAndStreaming ? streamingDebate : null}
                     streamingModel={isLastAndStreaming ? streamingModel : undefined}
                     toolStatus={isLastAndStreaming ? toolStatus : null}
+                    pairIndex={i}
+                    onFork={!streaming && pair.assistant ? handleFork : undefined}
                   />
                 </div>
               );
@@ -662,8 +823,8 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Dynamic spacer: CSS provides initial height, JS shrinks it as response grows */}
-            {(pairs.length > 0 || streaming) && (
+            {/* Dynamic spacer: only while streaming, removed after response completes */}
+            {streaming && (
               <div ref={spacerRef} className="h-[70dvh]" />
             )}
           </div>

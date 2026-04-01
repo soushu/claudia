@@ -3,6 +3,10 @@
     "name": "Mazelan"
   },
   "auth": {
+    "tagline": "Plan your trip with AI",
+    "feature1": "AI suggests the best travel plans",
+    "feature2": "Search flights in real time",
+    "feature3": "Get the latest info via web search",
     "signInTitle": "Sign in to continue",
     "signUpTitle": "Create your account",
     "signInWithGoogle": "Sign in with Google",
@@ -23,6 +27,27 @@
     "errorSignInFailed": "Sign in failed. Please try again.",
     "errorEmailExists": "This email is already registered.",
     "errorRegistrationFailed": "Registration failed.",
+    "deleteAccount": "Delete account",
+    "deleteAccountConfirm": "Are you sure you want to delete your account? All conversation history and data will be permanently deleted. This action cannot be undone.",
+    "deleteAccountFailed": "Failed to delete account.",
+    "forgotPassword": "Forgot your password?",
+    "forgotPasswordTitle": "Reset Password",
+    "forgotPasswordSubtitle": "Enter your registered email address",
+    "sendResetLink": "Send reset link",
+    "sending": "Sending...",
+    "resetEmailSentTitle": "Email sent",
+    "resetEmailSentMessage": "We sent a password reset link to your email. Please check your inbox and click the link.",
+    "resetPasswordTitle": "Set new password",
+    "resetPasswordSubtitle": "Enter your new password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm password",
+    "resetPassword": "Change password",
+    "resetting": "Changing...",
+    "passwordMismatch": "Passwords do not match.",
+    "resetFailed": "Password reset failed.",
+    "resetRequestFailed": "Failed to send reset email.",
+    "resetSuccessTitle": "Password changed",
+    "resetSuccessMessage": "Please sign in with your new password.",
     "terms": "Terms of Service",
     "privacy": "Privacy Policy"
   },
@@ -35,12 +60,19 @@
     "typeMessage": "Type a message...",
     "send": "Send",
     "attachImage": "Attach image",
+    "choosePhoto": "Choose photo",
+    "takePhoto": "Take photo",
     "dropImages": "Drop images to attach",
     "imageQuestion": "Image question",
+    "linkOmitted": "Link omitted",
     "errorGeneric": "An error occurred.",
     "errorSending": "An error occurred while sending the message. Please try again.",
     "errorApiKeyInvalid": "API key is invalid. Please set the correct key in \"API Key\" settings in the sidebar.",
-    "errorApiKeyMissing": "{provider} API key is not configured. Please set the key in \"API Key\" settings in the sidebar."
+    "errorApiKeyMissing": "{provider} API key is not configured. Please set the key in \"API Key\" settings in the sidebar.",
+    "fork": "Fork from here",
+    "thinkingStatus": "Thinking...",
+    "removeImage": "Remove image",
+    "imageAlt": "Attached image {number}"
   },
   "sidebar": {
     "newChat": "+ New",
@@ -91,7 +123,9 @@
     "preparing": "Preparing next step...",
     "completedSteps": "Completed steps ({count})",
     "viewProcess": "View debate process ({count})",
-    "step": "Step {current}/{total}: {label}"
+    "step": "Step {current}/{total}: {label}",
+    "modelA": "Model A",
+    "modelB": "Model B"
   },
   "systemPrompt": {
     "title": "System Prompt",
@@ -134,7 +168,8 @@
     "total": "Total",
     "cost": "Cost",
     "model": "Model",
-    "free": "{cost} (Free)"
+    "free": "{cost} (Free)",
+    "tokens": "tokens"
   },
   "copy": {
     "copied": "Copied!",

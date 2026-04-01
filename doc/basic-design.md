@@ -1,6 +1,6 @@
 # Mazelan 基本設計書
 
-最終更新: 2026-03-20
+最終更新: 2026-03-21
 
 ---
 
@@ -25,6 +25,14 @@ Mazelan は旅行特化型 AI チャット Web アプリケーション。ユー
 | チャットエクスポート | Text / PDF 形式で会話を書き出し |
 | 多言語対応（i18n） | 日本語・英語 |
 | テーマ | Dark / Sky Blue / Cyan の3テーマ |
+| Google Maps 店舗確認 | AI が推薦する店舗の営業状態をチェック |
+| 会話分岐（Fork） | 任意の Q&A ペアから新しいセッションを作成 |
+| PWA | スマホのホーム画面にインストール、オフラインでセッション操作 |
+| パスワードリセット | メールによるパスワードリセット（Resend API） |
+| アカウント削除 | ユーザーデータの完全削除 |
+| スマホカメラ入力 | モバイルでカメラから直接画像を添付 |
+| フォアグラウンド復帰 | バックグラウンド復帰時にメッセージ自動リロード |
+| 運用通知 | 新規ユーザー登録・エラー・API使用量の Slack 通知 |
 
 ### 1.3 対象ユーザー
 
@@ -85,6 +93,8 @@ graph TB
 | AI SDK | anthropic / openai / google-genai | 各最新 |
 | Web サーバー | Nginx | - |
 | デプロイ | GitHub Actions + systemd | - |
+| PWA | @ducanh2912/next-pwa | 5.6 |
+| メール送信 | Resend API | - |
 | インフラ | GCP Compute Engine (e2-small) | 0.5vCPU / 2GB RAM |
 
 ### 2.3 環境構成
@@ -104,18 +114,23 @@ graph TB
 |------|------|
 | Google OAuth ログイン | Google アカウントでのシングルサインオン |
 | メール/パスワード登録・ログイン | bcrypt によるパスワードハッシュ |
-| セッション管理 | NextAuth.js の JWT Cookie 認証 |
+| セッション管理 | NextAuth.js の JWT Cookie 認証（maxAge=30日、updateAge=24時間） |
+| パスワードリセット | HMAC-SHA256 トークンメール（Resend API、1時間有効） |
+| アカウント削除 | 全ユーザーデータのカスケード削除 |
 
 ### 3.2 チャット
 
 | 機能 | 説明 |
 |------|------|
 | ストリーミング応答 | Server-Sent Events でリアルタイム表示 |
-| マルチモデル選択 | セッションごとにモデルを選択・固定可能 |
+| マルチモデル選択 | メッセージごとにモデルを切り替えて送信可能 |
 | 画像添付 | 最大5枚、各10MB まで（JPEG/PNG/GIF/WebP） |
 | コードハイライト | Markdown + シンタックスハイライト |
 | トークン/コスト表示 | メッセージごとの使用量と費用を表示 |
 | 拡張思考モード | Claude / Gemini の思考プロセスを表示 |
+| 会話分岐 | 任意の Q&A ペアから新セッションを作成（fork） |
+| スマホカメラ入力 | モバイルでカメラ撮影して添付 |
+| フォアグラウンド復帰 | バックグラウンド復帰時に DB から再取得 |
 
 ### 3.3 セッション管理
 
@@ -134,6 +149,7 @@ graph TB
 |--------|------|-------------|
 | Amazon 商品検索 | 商品名で Amazon.co.jp を検索 | SerpAPI |
 | フライト検索 | 出発地・目的地・日程でフライト検索 | SerpAPI (Google Flights) + Travelpayouts |
+| Google Maps 店舗確認 | 推薦前に閉店チェック | SerpAPI (Google Maps) |
 | Web 検索 | インターネット上の最新情報を検索 | Anthropic built-in / Google Search Grounding |
 
 ### 3.5 コンテキストメモリ
@@ -244,7 +260,10 @@ erDiagram
 |---------|------|------|---------------|
 | POST | `/auth/upsert-user` | Google OAuth ユーザー作成/更新 | 10/min |
 | POST | `/auth/register` | メール/パスワード登録 | 3/min |
-| POST | `/auth/login` | メール/パスワードログイン | 5/min |
+| POST | `/auth/login` | メール/パスワードログイン | 3/min |
+| POST | `/auth/forgot-password` | パスワードリセットメール送信 | 3/min |
+| POST | `/auth/reset-password` | パスワードリセット実行 | 5/min |
+| DELETE | `/auth/account` | アカウント削除 | 3/min |
 
 #### チャット (`/chat`)
 
@@ -268,6 +287,7 @@ erDiagram
 | PUT | `/sessions/{id}` | タイトル変更 | 30/min |
 | DELETE | `/sessions/{id}` | セッション削除 | 20/min |
 | PUT | `/sessions/{id}/star` | スター切替 | 30/min |
+| POST | `/sessions/{id}/fork` | セッション分岐 | 10/min |
 | GET | `/sessions/user/system-prompt` | グローバルプロンプト取得 | 10/min |
 | PUT | `/sessions/user/system-prompt` | グローバルプロンプト更新 | 10/min |
 | GET | `/sessions/{id}/system-prompt` | セッションプロンプト取得 | 10/min |
@@ -316,10 +336,11 @@ Content-Type: text/plain (chunked)
 
 | 対策 | 実装 |
 |------|------|
-| パスワードハッシュ | bcrypt（passlib） |
+| パスワードハッシュ | bcrypt（passlib）、8文字以上+大文字+数字必須 |
+| API キー暗号化 | Web Crypto API (AES-GCM) で localStorage 暗号化 |
 | セッション管理 | JWT Cookie（httpOnly, SameSite=Lax, Secure） |
 | CSRF 対策 | SameSite Cookie |
-| メール列挙防止 | 登録時に既存アカウントでも同一レスポンス |
+| メール列挙防止 | パスワードリセット時に同一レスポンス |
 
 ### 6.2 入力制限
 
@@ -330,6 +351,10 @@ Content-Type: text/plain (chunked)
 | タイトル長制限 | 60文字 |
 | ストリーミングタイムアウト | 5分 |
 | 長 URL 防御 | 500文字超を [リンク省略] に置換 |
+| メッセージ長制限 | 50,000文字 |
+| システムプロンプト長制限 | 2,000文字 |
+| コンテキスト長制限 | 1,000文字 |
+| CORS 制限 | 必要な methods/headers のみ許可 |
 
 ### 6.3 HTTP ヘッダー
 
@@ -340,6 +365,8 @@ Content-Type: text/plain (chunked)
 | Referrer-Policy | strict-origin-when-cross-origin |
 | HSTS | max-age=31536000; includeSubDomains |
 | CSP | default-src 'self'; script-src 'self' 'unsafe-inline'; ... |
+| Expect-CT | max-age=86400, enforce |
+| Permissions-Policy | camera=(self), microphone=(), geolocation=() |
 
 ---
 

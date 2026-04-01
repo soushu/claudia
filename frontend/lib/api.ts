@@ -52,6 +52,16 @@ export async function deleteSession(sessionId: string): Promise<void> {
   });
 }
 
+export async function forkSession(sessionId: string, pairIndex: number): Promise<Session> {
+  const res = await fetch(`${BACKEND}/sessions/${sessionId}/fork`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ pair_index: pairIndex }),
+  });
+  return res.json();
+}
+
 export async function* streamChat(
   sessionId: string,
   content: string,
@@ -90,6 +100,15 @@ export async function* streamChat(
   });
   if (!res.ok || !res.body) {
     if (res.status === 401) throw new Error("API_KEY_INVALID");
+    if (res.status === 422) {
+      try {
+        const detail = await res.json();
+        const msg = detail?.detail?.[0]?.msg || "Validation error";
+        throw new Error(`VALIDATION: ${msg}`);
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith("VALIDATION:")) throw e;
+      }
+    }
     throw new Error("Stream failed");
   }
 
@@ -175,6 +194,15 @@ export async function* streamDebate(
   });
   if (!res.ok || !res.body) {
     if (res.status === 401) throw new Error("API_KEY_INVALID");
+    if (res.status === 422) {
+      try {
+        const detail = await res.json();
+        const msg = detail?.detail?.[0]?.msg || "Validation error";
+        throw new Error(`VALIDATION: ${msg}`);
+      } catch (e) {
+        if (e instanceof Error && e.message.startsWith("VALIDATION:")) throw e;
+      }
+    }
     throw new Error("Stream failed");
   }
 
@@ -231,4 +259,12 @@ export async function toggleContext(id: string): Promise<ContextItem> {
   });
   if (!res.ok) throw new Error("Failed to toggle context");
   return res.json();
+}
+
+export async function deleteAccount(): Promise<void> {
+  const res = await fetch(`${BACKEND}/auth/account`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("Failed to delete account");
 }

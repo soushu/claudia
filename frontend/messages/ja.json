@@ -3,6 +3,10 @@
     "name": "Mazelan"
   },
   "auth": {
+    "tagline": "AIと一緒に、旅を計画しよう",
+    "feature1": "AIが最適な旅行プランを提案",
+    "feature2": "リアルタイムでフライトを検索",
+    "feature3": "Web検索で最新情報を取得",
     "signInTitle": "ログインしてください",
     "signUpTitle": "アカウントを作成",
     "signInWithGoogle": "Googleでログイン",
@@ -23,6 +27,27 @@
     "errorSignInFailed": "ログインに失敗しました。もう一度お試しください。",
     "errorEmailExists": "このメールアドレスは既に登録されています。",
     "errorRegistrationFailed": "登録に失敗しました。",
+    "deleteAccount": "アカウント削除",
+    "deleteAccountConfirm": "本当にアカウントを削除しますか？全ての会話履歴とデータが完全に削除されます。この操作は取り消せません。",
+    "deleteAccountFailed": "アカウントの削除に失敗しました。",
+    "forgotPassword": "パスワードをお忘れですか？",
+    "forgotPasswordTitle": "パスワードリセット",
+    "forgotPasswordSubtitle": "登録したメールアドレスを入力してください",
+    "sendResetLink": "リセットリンクを送信",
+    "sending": "送信中...",
+    "resetEmailSentTitle": "メールを送信しました",
+    "resetEmailSentMessage": "パスワードリセットのリンクをメールで送信しました。メールを確認してリンクをクリックしてください。",
+    "resetPasswordTitle": "新しいパスワードを設定",
+    "resetPasswordSubtitle": "新しいパスワードを入力してください",
+    "newPassword": "新しいパスワード",
+    "confirmPassword": "パスワード確認",
+    "resetPassword": "パスワードを変更",
+    "resetting": "変更中...",
+    "passwordMismatch": "パスワードが一致しません。",
+    "resetFailed": "パスワードリセットに失敗しました。",
+    "resetRequestFailed": "リセットメールの送信に失敗しました。",
+    "resetSuccessTitle": "パスワードを変更しました",
+    "resetSuccessMessage": "新しいパスワードでログインしてください。",
     "terms": "利用規約",
     "privacy": "プライバシーポリシー"
   },
@@ -35,12 +60,19 @@
     "typeMessage": "メッセージを入力...",
     "send": "送信",
     "attachImage": "画像を添付",
+    "choosePhoto": "写真を選択",
+    "takePhoto": "カメラで撮影",
     "dropImages": "画像をドロップして添付",
     "imageQuestion": "画像の質問",
+    "linkOmitted": "リンク省略",
     "errorGeneric": "エラーが発生しました。",
     "errorSending": "メッセージの送信中にエラーが発生しました。もう一度お試しください。",
     "errorApiKeyInvalid": "APIキーが無効です。サイドバーの「API Key 設定」から正しいキーを設定してください。",
-    "errorApiKeyMissing": "{provider} APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。"
+    "errorApiKeyMissing": "{provider} APIキーが設定されていません。サイドバーの「API Key 設定」からキーを設定してください。",
+    "fork": "ここから分岐",
+    "thinkingStatus": "考え中...",
+    "removeImage": "画像を削除",
+    "imageAlt": "添付画像 {number}"
   },
   "sidebar": {
     "newChat": "+ New",
@@ -91,7 +123,9 @@
     "preparing": "次のステップを準備中...",
     "completedSteps": "完了したステップ（{count}件）",
     "viewProcess": "議論の過程を見る（{count}件）",
-    "step": "ステップ {current}/{total}: {label}"
+    "step": "ステップ {current}/{total}: {label}",
+    "modelA": "モデルA",
+    "modelB": "モデルB"
   },
   "systemPrompt": {
     "title": "システムプロンプト",
@@ -134,7 +168,8 @@
     "total": "合計",
     "cost": "コスト",
     "model": "モデル",
-    "free": "{cost} (Free)"
+    "free": "{cost} (Free)",
+    "tokens": "トークン"
   },
   "copy": {
     "copied": "コピーしました！",

@@ -29,15 +29,15 @@ jobs:
 
       - name: Deploy to production
         run: |
-          gcloud compute ssh yutookiguchi@bitpoint-bot \
-            --zone=us-west1-b \
+          gcloud compute ssh ${{ secrets.GCE_SSH_USER }}@${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_ZONE }} \
             --tunnel-through-iap \
-            --command="DEPLOY_USER=yutookiguchi bash /home/yutookiguchi/claudia/deploy/deploy-prod.sh"
+            --command="DEPLOY_USER=${{ secrets.GCE_SSH_USER }} bash /home/${{ secrets.GCE_SSH_USER }}/${{ secrets.GCE_DEPLOY_DIR }}/deploy/deploy-prod.sh"
 
       - name: Health check
         run: |
-          gcloud compute ssh yutookiguchi@bitpoint-bot \
-            --zone=us-west1-b \
+          gcloud compute ssh ${{ secrets.GCE_SSH_USER }}@${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_ZONE }} \
             --tunnel-through-iap \
             --command="curl -sf http://127.0.0.1:8000/health"
 
@@ -51,7 +51,7 @@ jobs:
             EMOJI="❌"
             STATUS="失敗"
           fi
-          COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1)
+          COMMIT_MSG=$(echo '${{ github.event.head_commit.message }}' | head -1 | tr '"' "'")
           curl -sX POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
             -H 'Content-Type: application/json' \
             -d "{\"text\": \"${EMOJI} *Mazelan 本番* デプロイ${STATUS}\n>${COMMIT_MSG}\n<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Actions>\"}"

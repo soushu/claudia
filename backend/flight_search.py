@@ -1,7 +1,6 @@
-"""Flight search via SerpAPI (Google Flights) and Travelpayouts (Aviasales).
+"""Flight search via SerpAPI or SearchApi.io (Google Flights). Switchable via env var.
 
-Smart search: uses Travelpayouts month matrix to find cheapest dates,
-then searches Google Flights for detailed results on those dates.
+Smart search: searches Google Flights for detailed results on specified dates.
 One tool call returns comprehensive results.
 """
 
@@ -16,14 +15,19 @@ from backend.serpapi_cache import get as cache_get, put as cache_put
 
 logger = logging.getLogger(__name__)
 
+# Provider switch: "serpapi" (default) or "searchapi"
+_PROVIDER = os.environ.get("FLIGHT_API_PROVIDER", "serpapi").lower()
+
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
-TRAVELPAYOUTS_TOKEN = os.environ.get("TRAVELPAYOUTS_TOKEN", "")
-SERPAPI_BASE = "https://serpapi.com/search.json"
-TRAVELPAYOUTS_BASE = "https://api.travelpayouts.com"
+SEARCHAPI_KEY = os.environ.get("SEARCHAPI_KEY", "")
+
+_API_KEY = SEARCHAPI_KEY if _PROVIDER == "searchapi" else SERPAPI_KEY
+_API_BASE = "https://www.searchapi.io/api/v1/search" if _PROVIDER == "searchapi" else "https://serpapi.com/search.json"
+_HAS_CALENDAR_API = _PROVIDER == "searchapi"  # Calendar API is SearchApi.io only
 
 
 def is_available() -> bool:
-    return bool(SERPAPI_KEY) or bool(TRAVELPAYOUTS_TOKEN)
+    return bool(_API_KEY)
 
 
 # ── Tool definition ──
@@ -34,7 +38,9 @@ FLIGHT_SEARCH_TOOL = {
         "Search for flights between two cities/airports. "
         "ONLY use this when the user EXPLICITLY asks to search for flights, prices, or tickets. "
         "Do NOT use for general airline questions. "
-        "Call ONCE per destination — the tool internally searches multiple dates to find the best deals."
+        "Call ONCE per destination — the tool internally searches multiple dates to find the best deals. "
+        "IMPORTANT: Before calling this tool, you MUST first use web search to verify the destination has only 1 airport. "
+        "If the city has multiple airports, ask the user which airport they prefer BEFORE calling this tool."
     ),
     "input_schema": {
         "type": "object",
@@ -53,17 +59,29 @@ FLIGHT_SEARCH_TOOL = {
             },
             "departure_day_from": {
                 "type": "integer",
-                "description": "Earliest departure day of month (e.g. 1 for 'early month'). Default: 1",
+                "description": "Earliest departure day of month. Default: 1",
                 "default": 1,
             },
             "departure_day_to": {
                 "type": "integer",
-                "description": "Latest departure day of month (e.g. 10 for 'early month'). Default: 10",
+                "description": "Latest departure day of month. Default: 10",
                 "default": 10,
+            },
+            "return_month": {
+                "type": "string",
+                "description": "Return month in YYYY-MM format. If omitted, calculated from departure + trip_weeks.",
+            },
+            "return_day_from": {
+                "type": "integer",
+                "description": "Earliest return day of month. Used with return_month.",
+            },
+            "return_day_to": {
+                "type": "integer",
+                "description": "Latest return day of month. Used with return_month.",
             },
             "trip_weeks": {
                 "type": "integer",
-                "description": "Approximate trip duration in weeks (2 or 3). Default: 2",
+                "description": "Approximate trip duration in weeks (fallback if return_month not set). Default: 2",
                 "default": 2,
             },
             "adults": {
@@ -152,51 +170,42 @@ def _fix_date(date_str: str) -> str:
         return date_str
 
 
-
-def _build_aviasales_link(origin: str, dest: str, dep_date: str, ret_date: str | None) -> str:
-    """Build Aviasales search URL."""
-    try:
-        dep_dt = datetime.strptime(dep_date, "%Y-%m-%d")
-        dep_ddmm = dep_dt.strftime("%d%m")
-        if ret_date:
-            ret_dt = datetime.strptime(ret_date, "%Y-%m-%d")
-            ret_ddmm = ret_dt.strftime("%d%m")
-            return f"https://www.aviasales.com/search/{origin}{dep_ddmm}{dest}{ret_ddmm}1"
-        return f"https://www.aviasales.com/search/{origin}{dep_ddmm}{dest}1"
-    except ValueError:
-        return f"https://www.aviasales.com/search/{origin}{dest}1"
-
-
-# ── Google Flights search ──
+# ── Google Flights search (works with both providers) ──
 
 async def _search_google_flights(
     origin: str, destination: str, departure_date: str,
     return_date: str | None = None, adults: int = 1, max_results: int = 5,
 ) -> list[dict]:
-    """Search Google Flights via SerpAPI for a specific date."""
-    if not SERPAPI_KEY:
+    """Search Google Flights for a specific date."""
+    if not _API_KEY:
         return []
 
     params: dict = {
         "engine": "google_flights",
         "departure_id": origin.upper(), "arrival_id": destination.upper(),
         "outbound_date": departure_date, "adults": adults,
-        "currency": "JPY", "hl": "ja", "api_key": SERPAPI_KEY,
+        "currency": "JPY", "hl": "ja", "api_key": _API_KEY,
     }
     if return_date:
         params["return_date"] = return_date
-        params["type"] = "1"
+        if _PROVIDER == "searchapi":
+            params["flight_type"] = "round_trip"
+        else:
+            params["type"] = "1"  # SerpAPI: 1=round_trip
     else:
-        params["type"] = "2"
+        if _PROVIDER == "searchapi":
+            params["flight_type"] = "one_way"
+        else:
+            params["type"] = "2"  # SerpAPI: 2=one_way
 
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.get(SERPAPI_BASE, params=params)
+            resp = await client.get(_API_BASE, params=params)
             resp.raise_for_status()
             data = resp.json()
 
-        # Get Google Flights URL from SerpAPI response (reliable, pre-built by Google)
-        gf_url = data.get("search_metadata", {}).get("google_flights_url", "")
+        metadata = data.get("search_metadata", {})
+        gf_url = metadata.get("google_flights_url", "") or metadata.get("request_url", "")
 
         flights = []
         for flight_list in [data.get("best_flights", []), data.get("other_flights", [])]:
@@ -230,7 +239,6 @@ async def _search_google_flights(
                     "currency": "JPY",
                     "departure_date": departure_date,
                     "return_date": return_date or "",
-                    "search_link": _build_aviasales_link(dep_airport, arr_airport, departure_date, return_date),
                     "google_flights_link": gf_url,
                     "_score": _flight_score(price, duration, stops),
                 })
@@ -239,20 +247,19 @@ async def _search_google_flights(
         return flights[:max_results]
 
     except httpx.TimeoutException:
-        logger.warning("Google Flights timeout: %s→%s on %s", origin, destination, departure_date)
+        logger.warning("Google Flights timeout (%s): %s→%s on %s", _PROVIDER, origin, destination, departure_date)
         return [{"_api_error": "timeout"}]
     except httpx.HTTPStatusError as e:
-        logger.error("Google Flights HTTP %s: %s→%s: %s", e.response.status_code, origin, destination, e.response.text[:200])
+        logger.error("Google Flights HTTP %s (%s): %s→%s: %s", e.response.status_code, _PROVIDER, origin, destination, e.response.text[:200])
         return [{"_api_error": f"HTTP {e.response.status_code}"}]
     except Exception as e:
-        logger.error("Google Flights error: %s→%s: %s", origin, destination, repr(e))
+        logger.error("Google Flights error (%s): %s→%s: %s", _PROVIDER, origin, destination, repr(e))
         return []
 
 
-# ── Main search: Google Flights calendar method ──
+# ── Helpers ──
 
 def _has_api_error(results: list[dict]) -> str | None:
-    """Check if results contain an API error. Returns error string or None."""
     for r in results:
         if "_api_error" in r:
             return r["_api_error"]
@@ -262,55 +269,100 @@ def _has_api_error(results: list[dict]) -> str | None:
 async def _search_oneway_cheapest(
     origin: str, destination: str, dates: list[str], adults: int = 1,
 ) -> list[tuple[str, int]]:
-    """Search one-way flights for multiple dates in parallel, return (date, cheapest_price) pairs."""
-    async def _get_cheapest_for_date(dep_date: str) -> tuple[str, int]:
+    """Search one-way flights for multiple dates in parallel (SerpAPI method)."""
+    async def _get_cheapest(dep_date: str) -> tuple[str, int]:
         results = await _search_google_flights(origin, destination, dep_date, None, adults, max_results=1)
         if _has_api_error(results):
-            return (dep_date, -1)  # Signal API error
+            return (dep_date, -1)
         if results and results[0].get("price"):
             return (dep_date, results[0]["price"])
         return (dep_date, 999999)
 
-    tasks = [_get_cheapest_for_date(d) for d in dates]
+    tasks = [_get_cheapest(d) for d in dates]
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    prices = []
-    for r in results:
-        if isinstance(r, tuple):
-            prices.append(r)
+    prices = [(d, p) for r in results if isinstance(r, tuple) for d, p in [r]]
     prices.sort(key=lambda x: x[1])
     return prices
 
 
+async def _search_calendar(
+    origin: str, destination: str,
+    outbound_date: str,
+    return_date: str | None = None,
+    outbound_date_start: str | None = None,
+    outbound_date_end: str | None = None,
+    return_date_start: str | None = None,
+    return_date_end: str | None = None,
+) -> list[dict]:
+    """Search Google Flights Calendar API (SearchApi.io only)."""
+    if not SEARCHAPI_KEY or _PROVIDER != "searchapi":
+        return []
+
+    params: dict = {
+        "engine": "google_flights_calendar",
+        "departure_id": origin.upper(),
+        "arrival_id": destination.upper(),
+        "outbound_date": outbound_date,
+        "currency": "JPY",
+        "hl": "ja",
+        "api_key": SEARCHAPI_KEY,
+    }
+    if outbound_date_start:
+        params["outbound_date_start"] = outbound_date_start
+    if outbound_date_end:
+        params["outbound_date_end"] = outbound_date_end
+    if return_date:
+        params["return_date"] = return_date
+        params["flight_type"] = "round_trip"
+    else:
+        params["flight_type"] = "one_way"
+    if return_date_start:
+        params["return_date_start"] = return_date_start
+    if return_date_end:
+        params["return_date_end"] = return_date_end
+
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.get(_API_BASE, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+        return data.get("calendar", [])
+    except Exception as e:
+        logger.warning("Calendar API error: %s→%s: %s", origin, destination, repr(e))
+        return []
+
+
+# ── Main search function ──
+
 async def search_flights(
     origin: str, destination: str,
-    departure_month: str = "",  # YYYY-MM
+    departure_month: str = "",
     departure_day_from: int = 1, departure_day_to: int = 10,
+    return_month: str = "",
+    return_day_from: int = 0, return_day_to: int = 0,
     trip_weeks: int = 2, adults: int = 1,
-    # Legacy params (backward compat)
     departure_date: str = "", return_date: str | None = None, max_results: int = 5,
 ) -> list[dict]:
-    """Smart flight search using Google Flights calendar method.
-
-    Like a user manually checking Google Flights:
-    1. Check one-way outbound prices for ~4 dates → find 2 cheapest departure dates
-    2. For each cheap departure, check one-way return prices for ~4 dates → find cheapest return
-    3. Search round-trip for top 2 date combos → get detailed results
-    4. Score, merge, return best + cheapest
-
-    Total: ~12 SerpAPI calls (parallel where possible), ~15-20 seconds
-    """
-    if not SERPAPI_KEY:
-        return [{"error": "Google Flights search not configured (SERPAPI_KEY)"}]
+    """Flight search. Uses Calendar API (SearchApi.io) or per-date search (SerpAPI)."""
+    if not _API_KEY:
+        return [{"error": "Google Flights search not configured"}]
 
     origin = origin.upper()
     destination = destination.upper()
+
+    # Gemini protobuf Struct returns integers as floats — cast to int
+    departure_day_from = int(departure_day_from)
+    departure_day_to = int(departure_day_to)
+    return_day_from = int(return_day_from)
+    return_day_to = int(return_day_to)
+    trip_weeks = int(trip_weeks)
+    adults = int(adults)
 
     # Handle legacy single-date calls
     if departure_date and not departure_month:
         departure_date = _fix_date(departure_date)
         if return_date:
             return_date = _fix_date(return_date)
-        # Check cache
         cache_params = {"origin": origin, "dest": destination, "dep": departure_date, "ret": return_date, "adults": adults}
         cached = cache_get("flight", cache_params)
         if cached is not None:
@@ -318,98 +370,165 @@ async def search_flights(
         results = await _search_google_flights(origin, destination, departure_date, return_date, adults, max_results)
         api_err = _has_api_error(results)
         if api_err:
-            return [{"error": f"flight_search is temporarily unavailable ({api_err}). DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
+            return [{"error": f"flight_search is temporarily unavailable ({api_err}). DO NOT fabricate flight data. Use web search to find approximate flight prices for {origin}→{destination} and present the results with the web search fallback format."}]
         if not results:
-            return [{"error": f"No flights found for {origin}→{destination} on {departure_date}"}]
+            return [{"error": f"No flights found for {origin}→{destination} on {departure_date}. DO NOT fabricate flight data. Use web search as fallback."}]
         cache_put("flight", cache_params, results)
         return results
 
-    # === Google Flights calendar method ===
+    # === Date range search ===
 
     if not departure_month:
         departure_month = date.today().strftime("%Y-%m")
 
-    # Check cache for calendar method
-    cache_params = {"origin": origin, "dest": destination, "month": departure_month, "from": departure_day_from, "to": departure_day_to, "weeks": trip_weeks, "adults": adults}
+    cache_params = {"origin": origin, "dest": destination, "month": departure_month, "from": departure_day_from, "to": departure_day_to, "ret_month": return_month, "ret_from": return_day_from, "ret_to": return_day_to, "weeks": trip_weeks, "adults": adults, "provider": _PROVIDER}
     cached = cache_get("flight", cache_params)
     if cached is not None:
         return cached
 
-    # Step 1: Generate departure date candidates (spread across range)
     try:
         year, month = map(int, departure_month.split("-"))
     except ValueError:
         return [{"error": f"Invalid departure_month: {departure_month}"}]
 
-    dep_candidates = []
-    day_range = departure_day_to - departure_day_from + 1
-    # Pick 3 evenly spaced dates from the range
-    step = max(1, day_range // 3)
-    for day in range(departure_day_from, min(departure_day_to + 1, 29), step):
-        try:
-            d = date(year, month, day)
-            if d >= date.today():
-                dep_candidates.append(d.isoformat())
-        except ValueError:
-            continue
+    # Generate departure date candidates
+    if departure_day_from == departure_day_to:
+        dep_candidates = []
+        for offset in [-1, 0, 1]:
+            try:
+                d = date(year, month, departure_day_from) + timedelta(days=offset)
+                if d >= date.today():
+                    dep_candidates.append(d)
+            except ValueError:
+                continue
+    else:
+        dep_candidates = []
+        for day in range(departure_day_from, min(departure_day_to + 1, 29)):
+            try:
+                d = date(year, month, day)
+                if d >= date.today():
+                    dep_candidates.append(d)
+            except ValueError:
+                continue
+
     if not dep_candidates:
         return [{"error": f"No valid dates in {departure_month} day {departure_day_from}-{departure_day_to}"}]
 
-    logger.info("Flight search %s→%s: checking outbound dates %s", origin, destination, dep_candidates)
+    dep_start = dep_candidates[0]
+    dep_end = dep_candidates[-1]
 
-    # Step 2: Find cheapest outbound dates (one-way search, parallel)
-    dep_prices = await _search_oneway_cheapest(origin, destination, dep_candidates, adults)
+    # Return date range
+    if return_month and return_day_from and return_day_to:
+        try:
+            ret_year, ret_month_val = map(int, return_month.split("-"))
+            if return_day_from == return_day_to:
+                ret_center = date(ret_year, ret_month_val, return_day_from)
+                ret_start = (ret_center - timedelta(days=1)).isoformat()
+                ret_end = (ret_center + timedelta(days=1)).isoformat()
+            else:
+                ret_start = date(ret_year, ret_month_val, return_day_from).isoformat()
+                ret_end = date(ret_year, ret_month_val, min(return_day_to, 28)).isoformat()
+        except ValueError:
+            ret_start = (dep_start + timedelta(days=trip_weeks * 7 - 1)).isoformat()
+            ret_end = (dep_start + timedelta(days=trip_weeks * 7 + 1)).isoformat()
+    else:
+        ret_start = (dep_start + timedelta(days=trip_weeks * 7 - 1)).isoformat()
+        ret_end = (dep_end + timedelta(days=trip_weeks * 7 + 1)).isoformat()
 
-    # Check for API errors (price == -1 signals API failure)
-    if dep_prices and all(p == -1 for _, p in dep_prices):
-        return [{"error": f"flight_search is temporarily unavailable. DO NOT tell the user the service is unavailable. Instead, use web search to find flight prices for {origin}→{destination} and present the results."}]
+    logger.info("Flight search %s→%s (%s): dates %s~%s, return %s~%s", origin, destination, _PROVIDER, dep_start, dep_end, ret_start, ret_end)
 
-    best_dep_dates = [d for d, p in dep_prices[:2] if p < 999999 and p != -1]
-
-    if not best_dep_dates:
-        # Fallback: use first and middle dates
-        best_dep_dates = dep_candidates[:2]
-
-    logger.info("Flight search %s→%s: cheapest outbound dates %s", origin, destination, best_dep_dates)
-
-    # Step 3: For each departure, find cheapest return dates (one-way reverse, parallel)
-    trip_days_center = trip_weeks * 7
     date_pairs: list[tuple[str, str]] = []
 
-    for dep_str in best_dep_dates:
-        dep_d = datetime.strptime(dep_str, "%Y-%m-%d").date()
-        # Check 3 return dates: trip_weeks*7 -2, 0, +2 days
-        ret_candidates = []
-        for offset in [-2, 0, 2]:
-            ret_d = dep_d + timedelta(days=trip_days_center + offset)
-            ret_candidates.append(ret_d.isoformat())
+    if _HAS_CALENDAR_API:
+        # === SearchApi.io: Use Calendar API (efficient, ~3 API calls) ===
+        dep_mid = dep_start + (dep_end - dep_start) // 2
+        ret_mid_date = datetime.strptime(ret_start, "%Y-%m-%d").date() + (datetime.strptime(ret_end, "%Y-%m-%d").date() - datetime.strptime(ret_start, "%Y-%m-%d").date()) // 2
+        calendar = await _search_calendar(
+            origin, destination,
+            outbound_date=dep_mid.isoformat(),
+            return_date=ret_mid_date.isoformat(),
+            outbound_date_start=dep_start.isoformat(),
+            outbound_date_end=dep_end.isoformat(),
+            return_date_start=ret_start,
+            return_date_end=ret_end,
+        )
 
-        ret_prices = await _search_oneway_cheapest(destination, origin, ret_candidates, adults)
-        best_ret = ret_prices[0][0] if ret_prices and ret_prices[0][1] < 999999 else (dep_d + timedelta(days=trip_days_center)).isoformat()
-        date_pairs.append((dep_str, best_ret))
+        if calendar:
+            dep_start_str = dep_start.isoformat()
+            dep_end_str = dep_end.isoformat()
+            valid_entries = [
+                e for e in calendar
+                if e.get("price") and not e.get("has_no_flights")
+                and dep_start_str <= e.get("departure", "") <= dep_end_str
+            ]
+            if valid_entries:
+                valid_entries.sort(key=lambda e: e.get("price", 999999))
+                for entry in valid_entries[:2]:
+                    dep = entry.get("departure", "")
+                    ret = entry.get("return", "")
+                    if dep and ret:
+                        date_pairs.append((dep, ret))
 
-    logger.info("Flight search %s→%s: searching round-trips %s", origin, destination, date_pairs)
+        if not date_pairs:
+            dep_mid_str = dep_mid.isoformat()
+            ret_fallback = (dep_mid + timedelta(days=trip_weeks * 7)).isoformat()
+            date_pairs.append((dep_mid_str, ret_fallback))
+    else:
+        # === SerpAPI: Per-date search (more API calls) ===
+        dep_date_strs = [d.isoformat() for d in dep_candidates]
+        dep_prices = await _search_oneway_cheapest(origin, destination, dep_date_strs, adults)
 
-    # Step 4: Search round-trip for best date pairs (parallel)
-    rt_tasks = [
-        _search_google_flights(origin, destination, dep, ret, adults, max_results)
-        for dep, ret in date_pairs
-    ]
+        if dep_prices and all(p == -1 for _, p in dep_prices):
+            return [{"error": f"flight_search is temporarily unavailable. DO NOT fabricate flight data. Use web search to find flight prices for {origin}→{destination}."}]
+
+        best_dep_dates = [d for d, p in dep_prices[:2] if p < 999999 and p != -1]
+        if not best_dep_dates:
+            best_dep_dates = dep_date_strs[:2]
+
+        # Find return dates
+        if return_month and return_day_from and return_day_to:
+            try:
+                ret_year_val, ret_month_val = map(int, return_month.split("-"))
+            except ValueError:
+                ret_year_val, ret_month_val = year, month
+            ret_candidates = []
+            for day in range(return_day_from, min(return_day_to + 1, 29)):
+                try:
+                    ret_candidates.append(date(ret_year_val, ret_month_val, day).isoformat())
+                except ValueError:
+                    continue
+            if ret_candidates:
+                ret_prices = await _search_oneway_cheapest(destination, origin, ret_candidates, adults)
+                best_ret = ret_prices[0][0] if ret_prices and ret_prices[0][1] < 999999 else ret_candidates[len(ret_candidates) // 2]
+                for dep_str in best_dep_dates:
+                    date_pairs.append((dep_str, best_ret))
+
+        if not date_pairs:
+            trip_days = trip_weeks * 7
+            for dep_str in best_dep_dates:
+                dep_d = datetime.strptime(dep_str, "%Y-%m-%d").date()
+                ret_candidates = [(dep_d + timedelta(days=trip_days + offset)).isoformat() for offset in [-1, 0, 1]]
+                ret_prices = await _search_oneway_cheapest(destination, origin, ret_candidates, adults)
+                best_ret = ret_prices[0][0] if ret_prices and ret_prices[0][1] < 999999 else (dep_d + timedelta(days=trip_days)).isoformat()
+                date_pairs.append((dep_str, best_ret))
+
+    logger.info("Flight search %s→%s: round-trip pairs %s", origin, destination, date_pairs)
+
+    # Search round-trips
+    rt_tasks = [_search_google_flights(origin, destination, dep, ret, adults, max_results) for dep, ret in date_pairs]
     rt_results = await asyncio.gather(*rt_tasks, return_exceptions=True)
 
     all_flights = []
     for r in rt_results:
         if isinstance(r, list):
-            all_flights.extend(r)
+            all_flights.extend([f for f in r if "_api_error" not in f])
 
     if not all_flights:
-        return [{"error": f"No flights found for {origin}→{destination} in {departure_month}. Try different dates."}]
+        return [{"error": f"No flights found for {origin}→{destination} in {departure_month}. DO NOT fabricate flight data. Use web search to find approximate prices and airlines for this route instead."}]
 
-    # Step 5: Score and return best + cheapest
     all_flights.sort(key=lambda f: f.get("_score", 999999))
     best_flights = all_flights[:max_results]
 
-    # Add absolute cheapest if not in top results
     cheapest = min(all_flights, key=lambda f: f.get("price") or 999999)
     cheapest_id = (cheapest.get("airline"), cheapest.get("price"), cheapest.get("departure"))
     best_ids = {(f.get("airline"), f.get("price"), f.get("departure")) for f in best_flights}

@@ -31,14 +31,27 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "X-API-Key", "X-Anthropic-Key", "X-Google-Fallback-Key", "X-Internal-API-Key", "X-API-Key-A", "X-API-Key-B"],
 )
 
 
-# Production error handlers: hide internal details
+# Production error handlers: hide internal details, except auth endpoints
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # Auth endpoints: show specific validation errors (e.g. password strength)
+    if str(request.url.path).startswith("/auth/"):
+        messages = []
+        for err in exc.errors():
+            msg = err.get("msg", "")
+            # Pydantic wraps field_validator messages as "Value error, ..."
+            if msg.startswith("Value error, "):
+                msg = msg[len("Value error, "):]
+            messages.append(msg)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "; ".join(messages) if messages else "Invalid request"},
+        )
     return JSONResponse(
         status_code=422,
         content={"detail": "Invalid request"},
@@ -48,11 +61,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
+    from backend.slack_notify import notify_error
+    notify_error(str(request.url.path), str(exc))
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
     )
 
+
+_internal_key = os.getenv("INTERNAL_API_KEY", "")
+if _is_prod and len(_internal_key) < 32:
+    logger.warning("INTERNAL_API_KEY is too short (%d chars). Use at least 32 characters in production.", len(_internal_key))
 
 from backend.routers import auth, chat, contexts, debate, sessions
 
@@ -61,6 +80,13 @@ app.include_router(chat.router)
 app.include_router(contexts.router)
 app.include_router(debate.router)
 app.include_router(sessions.router)
+
+
+@app.on_event("startup")
+def startup():
+    if _is_prod:
+        from backend.serpapi_monitor import start_monitor
+        start_monitor()
 
 
 @app.get("/health")

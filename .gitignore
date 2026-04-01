@@ -29,3 +29,13 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code
+.claude/
+
+# PWA auto-generated service worker files
+frontend/public/sw.js
+frontend/public/sw.js.map
+frontend/public/workbox-*.js
+frontend/public/workbox-*.js.map
+frontend/public/swe-worker-*.js
+

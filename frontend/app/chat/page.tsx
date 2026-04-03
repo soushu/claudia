@@ -303,6 +303,8 @@ export default function ChatPage() {
   async function handleLoadMore() {
     if (!activeId || loadingMore || !hasMore || messages.length === 0) return;
     setLoadingMore(true);
+    // Prevent scrollToLastQuestion from firing during load-more
+    shouldScrollToQuestion.current = false;
     try {
       const oldestCreatedAt = messages[0].created_at;
       const container = scrollContainerRef.current;

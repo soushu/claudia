@@ -78,6 +78,7 @@ GCP: e2-small (0.5vCPU / 2GB RAM), us-west1-b
 | `TEST_EMAIL` | ステージング環境のブラウザテスト用ログインメール |
 | `TEST_PASSWORD` | ステージング環境のブラウザテスト用パスワード |
 | `SLACK_WEBHOOK_URL` | 動作確認完了後の Slack 通知用 Webhook URL |
+| `SCRAPEDO_TOKEN` | Scrape.do Amazon検索API トークン（月1,000回無料） |
 
 ## 有料APIキーの使用（厳守）
 

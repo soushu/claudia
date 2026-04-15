@@ -668,6 +668,7 @@ async def _stream_google_with_key(
     model: str, gemini_contents: list, config: genai_types.GenerateContentConfig, api_key: str,
     enable_search: bool = False, has_tool_keywords: bool = False,
     func_tools_for_later: list | None = None,
+    skip_question_check: bool = False,
 ) -> AsyncGenerator[str | dict, None]:
     """Attempt streaming with a single key, with exponential backoff for transient 429s."""
     client = genai.Client(api_key=api_key)
@@ -724,14 +725,16 @@ async def _stream_google_with_key(
                     if not used_function_calling and enable_search:
                         if func_tools_for_later and not switched_to_function_calling:
                             # google_search phase done → check if model is asking a question
-                            buffered_str = "".join(buffered_text)
-                            if "？" in buffered_str or "?" in buffered_str:
-                                # Model is asking user a question (e.g. which airport)
-                                # Show the question and stop — don't proceed to flight_search
-                                for t in buffered_text:
-                                    yield t
-                                yield {"input_tokens": total_input, "output_tokens": total_output}
-                                return
+                            # (skip for Maps flow — only relevant for flight search airport disambiguation)
+                            if not skip_question_check:
+                                buffered_str = "".join(buffered_text)
+                                if "？" in buffered_str or "?" in buffered_str:
+                                    # Model is asking user a question (e.g. which airport)
+                                    # Show the question and stop — don't proceed to flight_search
+                                    for t in buffered_text:
+                                        yield t
+                                    yield {"input_tokens": total_input, "output_tokens": total_output}
+                                    return
                             # No question — switch to function_calling
                             config.tools = func_tools_for_later
                             switched_to_function_calling = True
@@ -976,7 +979,7 @@ async def stream_google(
                     yield {"input_tokens": total_input, "output_tokens": total_output}
                     return
 
-            async for chunk in _stream_google_with_key(model, gemini_contents, config, key, enable_search=enable_search, has_tool_keywords=has_tool_keywords, func_tools_for_later=func_tools if (has_flight or has_maps) else None):
+            async for chunk in _stream_google_with_key(model, gemini_contents, config, key, enable_search=enable_search, has_tool_keywords=has_tool_keywords, func_tools_for_later=func_tools if (has_flight or has_maps) else None, skip_question_check=has_maps and not has_flight):
                 yield chunk
             return  # Success
         except (ProviderSpendLimitError, ProviderRateLimitError) as e:
